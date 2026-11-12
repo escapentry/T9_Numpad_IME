@@ -496,15 +496,24 @@ class T9ImeService : InputMethodService() {
             R.id.key_4, R.id.key_5, R.id.key_6,
             R.id.key_7, R.id.key_8, R.id.key_9, R.id.key_0
         )
+        val isNumMode = inputMode == InputMode.NUM
         for (id in digitIds) {
-            val container = rootView.findViewById<LinearLayout>(id)
+            val container = rootView.findViewById<ViewGroup>(id)
             container.layoutParams = (container.layoutParams as GridLayout.LayoutParams).apply {
                 height = currentKeyHeightPx
             }
             container.background = makeRoundedDrawable(palette.keyHex, 16f)
             if (container.childCount >= 2) {
-                (container.getChildAt(0) as? TextView)?.setTextColor(Color.parseColor(palette.keyTextHex))
-                (container.getChildAt(1) as? TextView)?.setTextColor(Color.parseColor(palette.subTextHex))
+                val digitTv = container.getChildAt(0) as? TextView
+                val lettersTv = container.getChildAt(1) as? TextView
+                if (isNumMode) {
+                    digitTv?.setTextColor(Color.parseColor(palette.keyTextHex))
+                    digitTv?.alpha = 1f
+                } else {
+                    digitTv?.setTextColor(Color.parseColor(palette.subTextHex))
+                    digitTv?.alpha = 0.65f
+                }
+                lettersTv?.setTextColor(Color.parseColor(palette.keyTextHex))
             }
         }
 
@@ -1603,22 +1612,70 @@ class T9ImeService : InputMethodService() {
             )
         )
 
-        // Update on-key letter sub-labels dynamically to match active case (abc / Abc / ABC)
+        // Text entry shows large centered alphabet labels + subtle corner digit; 123 mode shows big centered numbers
         val keyViews = listOf(
             R.id.key_1 to '1', R.id.key_2 to '2', R.id.key_3 to '3',
             R.id.key_4 to '4', R.id.key_5 to '5', R.id.key_6 to '6',
             R.id.key_7 to '7', R.id.key_8 to '8', R.id.key_9 to '9',
             R.id.key_0 to '0'
         )
+        val isNumMode = inputMode == InputMode.NUM
+        val dp4 = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 4f, resources.displayMetrics).toInt()
+        val dp7 = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 7f, resources.displayMetrics).toInt()
+        val keyTextColorInt = Color.parseColor(palette.keyTextHex)
+        val subTextColorInt = Color.parseColor(palette.subTextHex)
+        val mediumTypeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+
         for ((id, d) in keyViews) {
-            val container = rootView.findViewById<LinearLayout>(id)
-            val subTv = container.getChildAt(1) as? TextView ?: continue
+            val container = rootView.findViewById<ViewGroup>(id)
+            val digitTv = container.getChildAt(0) as? TextView
+            val lettersTv = container.getChildAt(1) as? TextView
             val subText = formatDigitSubLabel(d)
-            if (subText.isEmpty()) {
-                subTv.visibility = View.GONE
+
+            if (isNumMode || subText.isEmpty()) {
+                digitTv?.apply {
+                    textSize = 24f
+                    typeface = mediumTypeface
+                    setTextColor(keyTextColorInt)
+                    alpha = 1f
+                    layoutParams = FrameLayout.LayoutParams(
+                        FrameLayout.LayoutParams.WRAP_CONTENT,
+                        FrameLayout.LayoutParams.WRAP_CONTENT,
+                        Gravity.CENTER
+                    )
+                }
+                lettersTv?.visibility = View.GONE
             } else {
-                subTv.visibility = View.VISIBLE
-                subTv.text = subText
+                digitTv?.apply {
+                    textSize = 10f
+                    typeface = Typeface.DEFAULT
+                    setTextColor(subTextColorInt)
+                    alpha = 0.65f
+                    layoutParams = FrameLayout.LayoutParams(
+                        FrameLayout.LayoutParams.WRAP_CONTENT,
+                        FrameLayout.LayoutParams.WRAP_CONTENT,
+                        Gravity.TOP or Gravity.END
+                    ).apply {
+                        topMargin = dp4
+                        marginEnd = dp7
+                    }
+                }
+                lettersTv?.apply {
+                    visibility = View.VISIBLE
+                    text = subText
+                    textSize = when (d) {
+                        '0' -> 20f
+                        '7', '9' -> 15.5f
+                        else -> 17f
+                    }
+                    typeface = mediumTypeface
+                    setTextColor(keyTextColorInt)
+                    layoutParams = FrameLayout.LayoutParams(
+                        FrameLayout.LayoutParams.WRAP_CONTENT,
+                        FrameLayout.LayoutParams.WRAP_CONTENT,
+                        Gravity.CENTER
+                    )
+                }
             }
         }
 
