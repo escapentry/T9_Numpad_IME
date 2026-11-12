@@ -8,7 +8,7 @@
     android:paddingTop="4dp"
     android:paddingBottom="10dp">
 
-    <!-- Gboard Suggestion Strip + Case Badge + Settings Button -->
+    <!-- Gboard Suggestion Strip + Case Badge + Flat Settings Icon -->
     <LinearLayout
         android:id="@+id/strip_bar"
         android:layout_width="match_parent"
@@ -44,10 +44,11 @@
                 android:paddingHorizontal="6dp" />
         </HorizontalScrollView>
 
-        <androidx.appcompat.widget.AppCompatButton
+        <androidx.appcompat.widget.AppCompatImageButton
             android:id="@+id/btn_ime_settings"
-            style="@style/NumpadStripButton"
-            android:text="⚙" />
+            style="@style/NumpadStripImageButton"
+            android:contentDescription="IME Settings"
+            android:src="@drawable/ic_settings" />
     </LinearLayout>
 
     <!-- 4-Column Gboard Numpad Grid (Cols 1-3 = 12-key T9, Col 4 = Thumb Rail) -->
@@ -111,7 +112,11 @@
             <TextView style="@style/NumpadLetters" android:text="WXYZ" />
         </LinearLayout>
 
-        <androidx.appcompat.widget.AppCompatButton android:id="@+id/key_backspace" style="@style/NumpadActionKey" android:text="⌫" />
+        <androidx.appcompat.widget.AppCompatImageButton
+            android:id="@+id/key_backspace"
+            style="@style/NumpadActionImageKey"
+            android:contentDescription="Backspace"
+            android:src="@drawable/ic_backspace" />
 
         <!-- ROW 4: * | 0 | # | Enter -->
         <androidx.appcompat.widget.AppCompatButton android:id="@+id/key_star" style="@style/NumpadSecondaryKey" android:text="* ⇧" />
@@ -123,11 +128,15 @@
 
         <androidx.appcompat.widget.AppCompatButton android:id="@+id/key_hash" style="@style/NumpadSecondaryKey" android:text="# ↻" />
 
-        <androidx.appcompat.widget.AppCompatButton android:id="@+id/key_enter" style="@style/NumpadEnterKey" android:text="↵" />
+        <androidx.appcompat.widget.AppCompatImageButton
+            android:id="@+id/key_enter"
+            style="@style/NumpadEnterImageKey"
+            android:contentDescription="Enter"
+            android:src="@drawable/ic_enter_return" />
 
     </GridLayout>
 
-    <!-- 3-Page Symbols Overlay Panel -->
+    <!-- 3-Page Symbols Overlay Panel (4 rows matching numpad_grid height) -->
     <LinearLayout
         android:id="@+id/symbols_panel"
         android:layout_width="match_parent"
@@ -139,19 +148,20 @@
             android:id="@+id/symbols_grid"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:columnCount="6" />
+            android:columnCount="6"
+            android:useDefaultMargins="false" />
 
         <LinearLayout
+            android:id="@+id/symbols_footer"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
             android:orientation="horizontal">
 
             <androidx.appcompat.widget.AppCompatButton
                 android:id="@+id/btn_sym_back"
                 style="@style/NumpadActionKey"
                 android:layout_width="0dp"
-                android:layout_height="44dp"
+                android:layout_height="54dp"
                 android:layout_weight="1"
                 android:text="Back" />
 
@@ -159,7 +169,7 @@
                 android:id="@+id/btn_sym_page"
                 style="@style/NumpadSecondaryKey"
                 android:layout_width="0dp"
-                android:layout_height="44dp"
+                android:layout_height="54dp"
                 android:layout_weight="1"
                 android:text="Page 1/3" />
 
@@ -167,17 +177,18 @@
                 android:id="@+id/btn_sym_space"
                 style="@style/NumpadSecondaryKey"
                 android:layout_width="0dp"
-                android:layout_height="44dp"
+                android:layout_height="54dp"
                 android:layout_weight="1"
                 android:text="Space" />
 
-            <androidx.appcompat.widget.AppCompatButton
+            <androidx.appcompat.widget.AppCompatImageButton
                 android:id="@+id/btn_sym_backspace"
-                style="@style/NumpadActionKey"
+                style="@style/NumpadActionImageKey"
                 android:layout_width="0dp"
-                android:layout_height="44dp"
+                android:layout_height="54dp"
                 android:layout_weight="1"
-                android:text="⌫" />
+                android:contentDescription="Backspace"
+                android:src="@drawable/ic_backspace" />
         </LinearLayout>
     </LinearLayout>
 </LinearLayout>

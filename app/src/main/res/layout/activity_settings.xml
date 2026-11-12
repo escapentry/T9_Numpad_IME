@@ -2,7 +2,8 @@
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:padding="20dp">
+    android:background="#F4F6F9"
+    android:padding="18dp">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -13,13 +14,22 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="T9 Numpad IME Settings"
+            android:textColor="#0F172A"
             android:textSize="22sp"
             android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="Tap any section below to expand options. Input mode and settings persist automatically."
+            android:textColor="#64748B"
+            android:textSize="13sp" />
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
+            android:layout_marginTop="14dp"
             android:orientation="horizontal">
 
             <Button
@@ -39,81 +49,595 @@
                 android:text="2. Select IME" />
         </LinearLayout>
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="20dp"
-            android:text="Keyboard Theme"
-            android:textSize="15sp"
-            android:textStyle="bold" />
-
-        <RadioGroup
-            android:id="@+id/rg_theme"
+        <!-- SECTION 1: Appearance & Visual Theme Previews -->
+        <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="6dp">
-            <RadioButton android:id="@+id/rb_theme_light" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Material Light" />
-            <RadioButton android:id="@+id/rb_theme_dark" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Material Dark" />
-            <RadioButton android:id="@+id/rb_theme_amoled" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="AMOLED Black" />
-        </RadioGroup>
-
-        <TextView
-            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
-            android:text="Keyboard Height"
-            android:textSize="15sp"
-            android:textStyle="bold" />
+            android:background="#FFFFFF"
+            android:orientation="vertical"
+            android:padding="14dp">
 
-        <RadioGroup
-            android:id="@+id/rg_height"
+            <LinearLayout
+                android:id="@+id/sec_theme_header"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Appearance &amp; Themes"
+                        android:textColor="#0F172A"
+                        android:textSize="15sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/tv_theme_summary"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Material Light"
+                        android:textColor="#64748B"
+                        android:textSize="12sp" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/tv_theme_chevron"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="▾"
+                    android:textColor="#475569"
+                    android:textSize="18sp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/sec_theme_body"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:orientation="horizontal">
+
+                <!-- Preview Card 1: Material Light -->
+                <LinearLayout
+                    android:id="@+id/card_theme_light"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="6dp"
+                    android:layout_weight="1"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:orientation="vertical"
+                    android:padding="8dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:background="#DCE4EF"
+                        android:orientation="vertical"
+                        android:padding="5dp">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal">
+                            <View android:layout_width="0dp" android:layout_height="14dp" android:layout_margin="1.5dp" android:layout_weight="1" android:background="#FFFFFF" />
+                            <View android:layout_width="0dp" android:layout_height="14dp" android:layout_margin="1.5dp" android:layout_weight="1" android:background="#FFFFFF" />
+                            <View android:layout_width="0dp" android:layout_height="14dp" android:layout_margin="1.5dp" android:layout_weight="1" android:background="#FFFFFF" />
+                            <View android:layout_width="0dp" android:layout_height="14dp" android:layout_margin="1.5dp" android:layout_weight="0.85" android:background="#C8DDFC" />
+                        </LinearLayout>
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal">
+                            <View android:layout_width="0dp" android:layout_height="14dp" android:layout_margin="1.5dp" android:layout_weight="1" android:background="#EDF2F8" />
+                            <View android:layout_width="0dp" android:layout_height="14dp" android:layout_margin="1.5dp" android:layout_weight="1" android:background="#FFFFFF" />
+                            <View android:layout_width="0dp" android:layout_height="14dp" android:layout_margin="1.5dp" android:layout_weight="1" android:background="#EDF2F8" />
+                            <View android:layout_width="0dp" android:layout_height="14dp" android:layout_margin="1.5dp" android:layout_weight="0.85" android:background="#0B57D0" />
+                        </LinearLayout>
+                    </LinearLayout>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:text="Material Light"
+                        android:textColor="#0F172A"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+
+                <!-- Preview Card 2: Material Dark -->
+                <LinearLayout
+                    android:id="@+id/card_theme_dark"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginHorizontal="3dp"
+                    android:layout_weight="1"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:orientation="vertical"
+                    android:padding="8dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:background="#1B1C1F"
+                        android:orientation="vertical"
+                        android:padding="5dp">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal">
+                            <View android:layout_width="0dp" android:layout_height="14dp" android:layout_margin="1.5dp" android:layout_weight="1" android:background="#2E3036" />
+                            <View android:layout_width="0dp" android:layout_height="14dp" android:layout_margin="1.5dp" android:layout_weight="1" android:background="#2E3036" />
+                            <View android:layout_width="0dp" android:layout_height="14dp" android:layout_margin="1.5dp" android:layout_weight="1" android:background="#2E3036" />
+                            <View android:layout_width="0dp" android:layout_height="14dp" android:layout_margin="1.5dp" android:layout_weight="0.85" android:background="#3A4352" />
+                        </LinearLayout>
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal">
+                            <View android:layout_width="0dp" android:layout_height="14dp" android:layout_margin="1.5dp" android:layout_weight="1" android:background="#25272C" />
+                            <View android:layout_width="0dp" android:layout_height="14dp" android:layout_margin="1.5dp" android:layout_weight="1" android:background="#2E3036" />
+                            <View android:layout_width="0dp" android:layout_height="14dp" android:layout_margin="1.5dp" android:layout_weight="1" android:background="#25272C" />
+                            <View android:layout_width="0dp" android:layout_height="14dp" android:layout_margin="1.5dp" android:layout_weight="0.85" android:background="#A8C7FA" />
+                        </LinearLayout>
+                    </LinearLayout>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:text="Material Dark"
+                        android:textColor="#0F172A"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+
+                <!-- Preview Card 3: AMOLED Black -->
+                <LinearLayout
+                    android:id="@+id/card_theme_amoled"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="6dp"
+                    android:layout_weight="1"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:orientation="vertical"
+                    android:padding="8dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:background="#000000"
+                        android:orientation="vertical"
+                        android:padding="5dp">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal">
+                            <View android:layout_width="0dp" android:layout_height="14dp" android:layout_margin="1.5dp" android:layout_weight="1" android:background="#151518" />
+                            <View android:layout_width="0dp" android:layout_height="14dp" android:layout_margin="1.5dp" android:layout_weight="1" android:background="#151518" />
+                            <View android:layout_width="0dp" android:layout_height="14dp" android:layout_margin="1.5dp" android:layout_weight="1" android:background="#151518" />
+                            <View android:layout_width="0dp" android:layout_height="14dp" android:layout_margin="1.5dp" android:layout_weight="0.85" android:background="#1D2433" />
+                        </LinearLayout>
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal">
+                            <View android:layout_width="0dp" android:layout_height="14dp" android:layout_margin="1.5dp" android:layout_weight="1" android:background="#0F0F12" />
+                            <View android:layout_width="0dp" android:layout_height="14dp" android:layout_margin="1.5dp" android:layout_weight="1" android:background="#151518" />
+                            <View android:layout_width="0dp" android:layout_height="14dp" android:layout_margin="1.5dp" android:layout_weight="1" android:background="#0F0F12" />
+                            <View android:layout_width="0dp" android:layout_height="14dp" android:layout_margin="1.5dp" android:layout_weight="0.85" android:background="#2563EB" />
+                        </LinearLayout>
+                    </LinearLayout>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:text="AMOLED Black"
+                        android:textColor="#0F172A"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- SECTION 2: Keyboard Height -->
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="6dp"
-            android:orientation="horizontal">
-            <RadioButton android:id="@+id/rb_height_compact" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginEnd="12dp" android:text="Compact" />
-            <RadioButton android:id="@+id/rb_height_standard" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginEnd="12dp" android:text="Standard" />
-            <RadioButton android:id="@+id/rb_height_tall" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Tall" />
-        </RadioGroup>
+            android:layout_marginTop="10dp"
+            android:background="#FFFFFF"
+            android:orientation="vertical"
+            android:padding="14dp">
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="20dp"
-            android:text="Typing &amp; Correction"
-            android:textSize="15sp"
-            android:textStyle="bold" />
+            <LinearLayout
+                android:id="@+id/sec_height_header"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
 
-        <com.google.android.material.switchmaterial.SwitchMaterial
-            android:id="@+id/switch_sound"
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Keyboard Height"
+                        android:textColor="#0F172A"
+                        android:textSize="15sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/tv_height_summary"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Standard (54dp)"
+                        android:textColor="#64748B"
+                        android:textSize="12sp" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/tv_height_chevron"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="▸"
+                    android:textColor="#475569"
+                    android:textSize="18sp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/sec_height_body"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <RadioGroup
+                    android:id="@+id/rg_height"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+                    <RadioButton android:id="@+id/rb_height_compact" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginEnd="12dp" android:text="Compact" />
+                    <RadioButton android:id="@+id/rb_height_standard" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginEnd="12dp" android:text="Standard" />
+                    <RadioButton android:id="@+id/rb_height_tall" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Tall" />
+                </RadioGroup>
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- SECTION 3: Sound & Haptic Feedback -->
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="Sound on keypress" />
+            android:layout_marginTop="10dp"
+            android:background="#FFFFFF"
+            android:orientation="vertical"
+            android:padding="14dp">
 
-        <com.google.android.material.switchmaterial.SwitchMaterial
-            android:id="@+id/switch_haptic"
+            <LinearLayout
+                android:id="@+id/sec_feedback_header"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Sound &amp; Haptic Feedback"
+                        android:textColor="#0F172A"
+                        android:textSize="15sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/tv_feedback_summary"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Sound 75% · Haptic 65%"
+                        android:textColor="#64748B"
+                        android:textSize="12sp" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/tv_feedback_chevron"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="▸"
+                    android:textColor="#475569"
+                    android:textSize="18sp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/sec_feedback_body"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/switch_sound"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Synthesized sound on keypress" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:orientation="horizontal">
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Keypress volume"
+                        android:textColor="#475569"
+                        android:textSize="13sp" />
+                    <TextView
+                        android:id="@+id/tv_sound_volume_val"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="75%"
+                        android:textColor="#0F172A"
+                        android:textSize="13sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+
+                <SeekBar
+                    android:id="@+id/seek_sound_volume"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="10dp"
+                    android:max="100" />
+
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/switch_haptic"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Haptic vibration on keypress" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:orientation="horizontal">
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Haptic strength"
+                        android:textColor="#475569"
+                        android:textSize="13sp" />
+                    <TextView
+                        android:id="@+id/tv_haptic_strength_val"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="65%"
+                        android:textColor="#0F172A"
+                        android:textSize="13sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+
+                <SeekBar
+                    android:id="@+id/seek_haptic_strength"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:max="100" />
+
+                <Button
+                    android:id="@+id/btn_test_feedback"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:text="Test Sound &amp; Haptics" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- SECTION 4: Typing & Correction -->
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Haptic vibration on keypress" />
+            android:layout_marginTop="10dp"
+            android:background="#FFFFFF"
+            android:orientation="vertical"
+            android:padding="14dp">
 
-        <com.google.android.material.switchmaterial.SwitchMaterial
-            android:id="@+id/switch_auto_cap"
+            <LinearLayout
+                android:id="@+id/sec_typing_header"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Typing &amp; Correction"
+                        android:textColor="#0F172A"
+                        android:textSize="15sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/tv_typing_summary"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Auto-Cap · Auto-Space · ABC Auto-Correct"
+                        android:textColor="#64748B"
+                        android:textSize="12sp" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/tv_typing_chevron"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="▸"
+                    android:textColor="#475569"
+                    android:textSize="18sp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/sec_typing_body"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/switch_auto_cap"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Auto-capitalization" />
+
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/switch_auto_space"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Auto-spacing after punctuation &amp; candidates" />
+
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/switch_auto_correct_abc"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Auto-correct (when T9 is OFF / ABC mode only)" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- SECTION 5: Personal Dictionary -->
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Auto-capitalization" />
+            android:layout_marginTop="10dp"
+            android:layout_marginBottom="20dp"
+            android:background="#FFFFFF"
+            android:orientation="vertical"
+            android:padding="14dp">
 
-        <com.google.android.material.switchmaterial.SwitchMaterial
-            android:id="@+id/switch_auto_space"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Auto-spacing after punctuation &amp; candidates" />
+            <LinearLayout
+                android:id="@+id/sec_dict_header"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
 
-        <com.google.android.material.switchmaterial.SwitchMaterial
-            android:id="@+id/switch_auto_correct_abc"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Auto-correct (when T9 is OFF / ABC mode only)" />
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Personal Dictionary"
+                        android:textColor="#0F172A"
+                        android:textSize="15sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/tv_dict_summary"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="0 saved words"
+                        android:textColor="#64748B"
+                        android:textSize="12sp" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/tv_dict_chevron"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="▸"
+                    android:textColor="#475569"
+                    android:textSize="18sp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/sec_dict_body"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+
+                    <EditText
+                        android:id="@+id/et_new_word"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:hint="Spell word (a-z)"
+                        android:inputType="textNoSuggestions" />
+
+                    <Button
+                        android:id="@+id/btn_add_custom_word"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="6dp"
+                        android:text="Add" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/tv_custom_words_list"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:textColor="#475569"
+                    android:textSize="13sp" />
+
+                <Button
+                    android:id="@+id/btn_clear_custom_words"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="Clear Custom Words" />
+            </LinearLayout>
+        </LinearLayout>
 
     </LinearLayout>
 </ScrollView>

@@ -72,13 +72,29 @@ class T9Engine {
         }
     }
 
+    fun hasWord(word: String): Boolean {
+        val clean = word.trim().lowercase()
+        return clean.length >= 2 && validWordSet.contains(clean)
+    }
+
     fun insertWord(word: String, score: Int) {
-        val digits = wordToDigits(word) ?: return
+        val clean = word.trim().lowercase()
+        val digits = wordToDigits(clean) ?: return
+        if (validWordSet.add(clean)) {
+            orderedWords.add(0, clean)
+        }
         var node = root
         for (d in digits) {
             node = node.children.getOrPut(d) { TrieNode() }
         }
-        node.exactWords.add(word to score)
+        val idx = node.exactWords.indexOfFirst { it.first == clean }
+        if (idx >= 0) {
+            if (score > node.exactWords[idx].second) {
+                node.exactWords[idx] = clean to score
+            }
+        } else {
+            node.exactWords.add(clean to score)
+        }
         node.exactWords.sortByDescending { it.second }
     }
 
