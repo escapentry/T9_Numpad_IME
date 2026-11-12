@@ -44,6 +44,12 @@
                 android:paddingHorizontal="6dp" />
         </HorizontalScrollView>
 
+        <androidx.appcompat.widget.AppCompatImageButton
+            android:id="@+id/btn_clipboard"
+            style="@style/NumpadStripImageButton"
+            android:contentDescription="Clipboard History"
+            android:src="@drawable/ic_clipboard" />
+
         <androidx.appcompat.widget.AppCompatButton
             android:id="@+id/btn_toggle_t9"
             android:layout_width="wrap_content"
@@ -205,6 +211,52 @@
                 android:layout_weight="1"
                 android:contentDescription="Backspace"
                 android:src="@drawable/ic_backspace" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- Back-to-Back Clipboard History Panel (height locked to numpad_grid) -->
+    <LinearLayout
+        android:id="@+id/clipboard_panel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <ScrollView
+            android:id="@+id/clipboard_scroll"
+            android:layout_width="match_parent"
+            android:layout_height="180dp"
+            android:paddingHorizontal="4dp"
+            android:paddingTop="4dp"
+            android:scrollbars="vertical">
+
+            <LinearLayout
+                android:id="@+id/clipboard_list"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical" />
+        </ScrollView>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <androidx.appcompat.widget.AppCompatButton
+                android:id="@+id/btn_clip_back"
+                style="@style/NumpadActionKey"
+                android:layout_width="0dp"
+                android:layout_height="54dp"
+                android:layout_weight="1"
+                android:text="Back" />
+
+            <androidx.appcompat.widget.AppCompatButton
+                android:id="@+id/btn_clip_clear"
+                style="@style/NumpadSecondaryKey"
+                android:layout_width="0dp"
+                android:layout_height="54dp"
+                android:layout_weight="1"
+                android:text="Clear All" />
         </LinearLayout>
     </LinearLayout>
 </LinearLayout>

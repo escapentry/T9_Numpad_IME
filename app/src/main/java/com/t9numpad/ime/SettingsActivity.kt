@@ -1,8 +1,10 @@
 package com.t9numpad.ime
 
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
+import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.media.AudioAttributes
@@ -41,6 +43,8 @@ class SettingsActivity : AppCompatActivity() {
         const val KEY_AUTO_CORRECT_ABC = "ime_auto_correct_abc_only"
         const val KEY_CUSTOM_WORDS = "ime_custom_words"
         const val KEY_LEARNED_FREQS = "ime_learned_freqs"
+        const val KEY_SHOW_LAUNCHER_ICON = "ime_show_launcher_icon"
+        const val KEY_CLIPBOARD_HISTORY = "ime_clipboard_history"
     }
 
     private lateinit var prefs: SharedPreferences
@@ -259,6 +263,13 @@ class SettingsActivity : AppCompatActivity() {
         }
         refreshCustomWordsUI()
 
+        val switchLauncherIcon = findViewById<SwitchMaterial>(R.id.switch_launcher_icon)
+        switchLauncherIcon.isChecked = isLauncherIconCurrentlyEnabled()
+        switchLauncherIcon.setOnCheckedChangeListener { _, isChecked ->
+            prefs.edit().putBoolean(KEY_SHOW_LAUNCHER_ICON, isChecked).apply()
+            setLauncherIconEnabled(isChecked)
+        }
+
         findViewById<Button>(R.id.btn_enable_ime).setOnClickListener {
             startActivity(Intent(Settings.ACTION_INPUT_METHOD_SETTINGS))
         }
@@ -266,6 +277,21 @@ class SettingsActivity : AppCompatActivity() {
             val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
             imm.showInputMethodPicker()
         }
+    }
+
+    private fun isLauncherIconCurrentlyEnabled(): Boolean {
+        val alias = ComponentName(this, "com.t9numpad.ime.LauncherAlias")
+        return packageManager.getComponentEnabledSetting(alias) == PackageManager.COMPONENT_ENABLED_STATE_ENABLED
+    }
+
+    private fun setLauncherIconEnabled(enabled: Boolean) {
+        val alias = ComponentName(this, "com.t9numpad.ime.LauncherAlias")
+        val state = if (enabled) {
+            PackageManager.COMPONENT_ENABLED_STATE_ENABLED
+        } else {
+            PackageManager.COMPONENT_ENABLED_STATE_DISABLED
+        }
+        packageManager.setComponentEnabledSetting(alias, state, PackageManager.DONT_KILL_APP)
     }
 
     private fun setupAccordion(headerId: Int, bodyId: Int, chevronId: Int, startExpanded: Boolean) {

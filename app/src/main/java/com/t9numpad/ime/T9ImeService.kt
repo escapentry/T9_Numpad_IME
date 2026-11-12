@@ -1,10 +1,13 @@
 package com.t9numpad.ime
 
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.content.res.ColorStateList
 import android.graphics.Color
+import android.graphics.Typeface
+import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
 import android.inputmethodservice.InputMethodService
 import android.media.AudioAttributes
@@ -27,10 +30,12 @@ import android.widget.GridLayout
 import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import android.widget.PopupWindow
+import android.widget.ScrollView
 import android.widget.TextView
 import androidx.appcompat.widget.AppCompatButton
 import androidx.appcompat.widget.AppCompatImageButton
 import androidx.core.widget.ImageViewCompat
+import org.json.JSONArray
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import kotlin.math.PI
@@ -49,6 +54,11 @@ class T9ImeService : InputMethodService() {
     private lateinit var symbolsPanel: LinearLayout
     private lateinit var symbolsGrid: GridLayout
     private lateinit var symbolsFooter: LinearLayout
+    private lateinit var clipboardPanel: LinearLayout
+    private lateinit var clipboardScroll: ScrollView
+    private lateinit var clipboardList: LinearLayout
+    private lateinit var clipBackBtn: AppCompatButton
+    private lateinit var clipClearBtn: AppCompatButton
     private lateinit var symbolPageBtn: AppCompatButton
     private lateinit var symBackBtn: AppCompatButton
     private lateinit var symSpaceBtn: AppCompatButton
@@ -56,6 +66,7 @@ class T9ImeService : InputMethodService() {
     private lateinit var candidateContainer: LinearLayout
     private lateinit var candidateScroll: HorizontalScrollView
     private lateinit var caseBadge: TextView
+    private lateinit var clipboardButton: AppCompatImageButton
     private lateinit var t9ToggleButton: AppCompatButton
     private lateinit var modeButton: AppCompatButton
     private lateinit var symButton: AppCompatButton
@@ -68,16 +79,20 @@ class T9ImeService : InputMethodService() {
     private val mainHandler = Handler(Looper.getMainLooper())
     private val audioExecutor = Executors.newSingleThreadScheduledExecutor()
     private lateinit var prefs: SharedPreferences
+    private var clipboardManager: ClipboardManager? = null
+    private val clipboardHistory = ArrayList<String>()
 
     private val pcmCache = HashMap<String, ByteArray>()
     private var keyPopupWindow: PopupWindow? = null
     private var keyPopupView: TextView? = null
+    private val dismissPopupRunnable = Runnable { dismissKeyPopupImmediate() }
 
     private var t9Enabled = true
     private var isNumericMode = false
     private var inputMode = InputMode.T9
     private var caseMode = CaseMode.TITLE
     private var symbolsOpen = false
+    private var clipboardOpen = false
     private var symbolPage = 0
     private var isSpellingToDict = false
     private var currentKeyHeightPx = 0
@@ -129,18 +144,33 @@ class T9ImeService : InputMethodService() {
 
     private val autoSpacePunct = setOf(".", ",", "?", "!", ";", ":")
 
+    private val clipChangedListener = ClipboardManager.OnPrimaryClipChangedListener {
+        captureCurrentSystemClip()
+    }
+
     override fun onCreate() {
         super.onCreate()
         prefs = getSharedPreferences(SettingsActivity.PREFS_NAME, Context.MODE_PRIVATE)
         t9Engine.loadDictionary(assets.open("t9_words.txt"))
         syncCustomWordsFromPrefs()
         syncLearnedFreqsFromPrefs()
+        loadClipboardHistory()
+        clipboardManager = getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+        clipboardManager?.addPrimaryClipChangedListener(clipChangedListener)
+        captureCurrentSystemClip()
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        dismissKeyPopup()
+        clipboardManager?.removePrimaryClipChangedListener(clipChangedListener)
+        mainHandler.removeCallbacks(dismissPopupRunnable)
+        dismissKeyPopupImmediate()
         audioExecutor.shutdownNow()
+    }
+
+    override fun onWindowShown() {
+        super.onWindowShown()
+        window?.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
     }
 
     override fun onCreateInputView(): View {
@@ -150,6 +180,11 @@ class T9ImeService : InputMethodService() {
         symbolsPanel = rootView.findViewById(R.id.symbols_panel)
         symbolsGrid = rootView.findViewById(R.id.symbols_grid)
         symbolsFooter = rootView.findViewById(R.id.symbols_footer)
+        clipboardPanel = rootView.findViewById(R.id.clipboard_panel)
+        clipboardScroll = rootView.findViewById(R.id.clipboard_scroll)
+        clipboardList = rootView.findViewById(R.id.clipboard_list)
+        clipBackBtn = rootView.findViewById(R.id.btn_clip_back)
+        clipClearBtn = rootView.findViewById(R.id.btn_clip_clear)
         symbolPageBtn = rootView.findViewById(R.id.btn_sym_page)
         symBackBtn = rootView.findViewById(R.id.btn_sym_back)
         symSpaceBtn = rootView.findViewById(R.id.btn_sym_space)
@@ -157,6 +192,7 @@ class T9ImeService : InputMethodService() {
         candidateContainer = rootView.findViewById(R.id.candidate_container)
         candidateScroll = rootView.findViewById(R.id.candidate_scroll)
         caseBadge = rootView.findViewById(R.id.case_badge)
+        clipboardButton = rootView.findViewById(R.id.btn_clipboard)
         t9ToggleButton = rootView.findViewById(R.id.btn_toggle_t9)
         modeButton = rootView.findViewById(R.id.key_mode)
         symButton = rootView.findViewById(R.id.key_sym)
@@ -168,6 +204,7 @@ class T9ImeService : InputMethodService() {
         bindDigitKeys()
         bindActionKeys()
         bindSymbolsPanel()
+        bindClipboardPanel()
         loadAndApplySettings()
         refreshModeUI()
         return rootView
@@ -175,14 +212,17 @@ class T9ImeService : InputMethodService() {
 
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
         super.onStartInputView(info, restarting)
+        window?.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        captureCurrentSystemClip()
         loadAndApplySettings()
         syncCustomWordsFromPrefs()
         syncLearnedFreqsFromPrefs()
         resetComposition()
         isSpellingToDict = false
         symbolsOpen = false
-        dismissKeyPopup()
-        updateSymbolsVisibility()
+        clipboardOpen = false
+        dismissKeyPopupImmediate()
+        updatePanelVisibility()
 
         t9Enabled = prefs.getBoolean(SettingsActivity.KEY_T9_ENABLED, true)
         isNumericMode = prefs.getBoolean(SettingsActivity.KEY_IS_NUMERIC, false)
@@ -356,8 +396,14 @@ class T9ImeService : InputMethodService() {
 
         val palette = currentPalette()
 
-        rootView.setBackgroundColor(Color.parseColor(palette.trayHex))
-        stripBar.setBackgroundColor(Color.parseColor(palette.stripHex))
+        rootView.background = makeTopRoundedDrawable(palette.trayHex, 16f)
+        stripBar.background = makeTopRoundedDrawable(palette.stripHex, 16f)
+        ImageViewCompat.setImageTintList(
+            clipboardButton,
+            ColorStateList.valueOf(
+                Color.parseColor(if (clipboardOpen) palette.enterHex else palette.subTextHex)
+            )
+        )
         ImageViewCompat.setImageTintList(
             settingsButton,
             ColorStateList.valueOf(Color.parseColor(palette.subTextHex))
@@ -417,7 +463,7 @@ class T9ImeService : InputMethodService() {
             ColorStateList.valueOf(Color.parseColor(palette.enterTextHex))
         )
 
-        // Lock Symbols footer height and theme colors to match the main numpad row height
+        // Lock Symbols & Clipboard footer height and theme colors to match the main numpad row height
         listOf(symBackBtn, symbolPageBtn, symSpaceBtn, symBackspaceBtn).forEach { v ->
             v.layoutParams = (v.layoutParams as LinearLayout.LayoutParams).apply {
                 height = currentKeyHeightPx
@@ -435,7 +481,23 @@ class T9ImeService : InputMethodService() {
             ColorStateList.valueOf(Color.parseColor(palette.actionTextHex))
         )
 
+        // Match Clipboard scroll area to 3 rows of keys so overall keyboard height stays fixed
+        val clipMarginPx = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 18f, resources.displayMetrics).toInt()
+        clipboardScroll.layoutParams = (clipboardScroll.layoutParams as LinearLayout.LayoutParams).apply {
+            height = currentKeyHeightPx * 3 + clipMarginPx
+        }
+        listOf(clipBackBtn, clipClearBtn).forEach { v ->
+            v.layoutParams = (v.layoutParams as LinearLayout.LayoutParams).apply {
+                height = currentKeyHeightPx
+            }
+        }
+        clipBackBtn.background = makeRoundedDrawable(palette.actionHex, 16f)
+        clipBackBtn.setTextColor(Color.parseColor(palette.actionTextHex))
+        clipClearBtn.background = makeRoundedDrawable(palette.secondaryHex, 16f)
+        clipClearBtn.setTextColor(Color.parseColor(palette.keyTextHex))
+
         renderSymbolPage()
+        renderClipboardHistory()
     }
 
     private fun makeRoundedDrawable(hex: String, radiusDp: Float): GradientDrawable {
@@ -447,20 +509,38 @@ class T9ImeService : InputMethodService() {
         }
     }
 
+    private fun makeTopRoundedDrawable(hex: String, topRadiusDp: Float): GradientDrawable {
+        val r = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, topRadiusDp, resources.displayMetrics)
+        return GradientDrawable().apply {
+            shape = GradientDrawable.RECTANGLE
+            cornerRadii = floatArrayOf(r, r, r, r, 0f, 0f, 0f, 0f)
+            setColor(Color.parseColor(hex))
+        }
+    }
+
     private fun showKeyPopup(anchor: View, label: String) {
         if (!showKeyPopups || label.isEmpty()) return
-        val palette = currentPalette()
+        mainHandler.removeCallbacks(dismissPopupRunnable)
+
+        val isLightKeyboard = themeId == "material_light"
+        // Opposite-theme high-contrast bold popup bubble
+        val popupBgHex = if (isLightKeyboard) "#181A1E" else "#FFFFFF"
+        val popupTextHex = if (isLightKeyboard) "#FFFFFF" else "#111318"
+        val popupBorderHex = if (isLightKeyboard) "#334155" else "#CBD5E1"
+
         val tv = keyPopupView ?: TextView(this).apply {
             gravity = Gravity.CENTER
-            textSize = 20f
+            textSize = 21f
+            typeface = Typeface.DEFAULT_BOLD
             includeFontPadding = false
-            setPadding(28, 16, 28, 16)
+            setPadding(32, 16, 32, 16)
             keyPopupView = this
         }
         tv.text = label
-        tv.setTextColor(Color.parseColor(palette.keyTextHex))
-        tv.background = makeRoundedDrawable(palette.keyHex, 14f).apply {
-            setStroke(2, Color.parseColor(palette.subTextHex))
+        tv.typeface = Typeface.DEFAULT_BOLD
+        tv.setTextColor(Color.parseColor(popupTextHex))
+        tv.background = makeRoundedDrawable(popupBgHex, 16f).apply {
+            setStroke(2, Color.parseColor(popupBorderHex))
         }
         val pw = keyPopupWindow ?: PopupWindow(
             tv,
@@ -470,7 +550,7 @@ class T9ImeService : InputMethodService() {
         ).apply {
             isTouchable = false
             isClippingEnabled = false
-            elevation = 14f
+            elevation = 16f
             keyPopupWindow = this
         }
         tv.measure(
@@ -488,7 +568,13 @@ class T9ImeService : InputMethodService() {
         }
     }
 
-    private fun dismissKeyPopup() {
+    private fun scheduleDismissKeyPopup() {
+        mainHandler.removeCallbacks(dismissPopupRunnable)
+        mainHandler.postDelayed(dismissPopupRunnable, 100L)
+    }
+
+    private fun dismissKeyPopupImmediate() {
+        mainHandler.removeCallbacks(dismissPopupRunnable)
         try {
             keyPopupWindow?.dismiss()
         } catch (_: Throwable) {
@@ -499,7 +585,7 @@ class T9ImeService : InputMethodService() {
         view.setOnTouchListener { v, event ->
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> showKeyPopup(v, labelProvider())
-                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> dismissKeyPopup()
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> scheduleDismissKeyPopup()
             }
             false // Return false so click and long-click listeners continue working normally
         }
@@ -515,14 +601,7 @@ class T9ImeService : InputMethodService() {
 
         digitMap.forEach { (viewId, digit) ->
             val keyView = rootView.findViewById<View>(viewId)
-            attachPopupTouch(keyView) {
-                if (inputMode == InputMode.NUM || digit == '0' || digit == '1') {
-                    digit.toString()
-                } else {
-                    val sub = formatDigitSubLabel(digit)
-                    if (sub.isNotEmpty()) "$digit\n$sub" else digit.toString()
-                }
-            }
+            attachPopupTouch(keyView) { getPopupLabelForDigit(digit) }
             keyView.setOnClickListener {
                 val kind = if (digit == '0') SoundKind.SPACE else SoundKind.DIGIT
                 performFeedback(kind, keyChar = digit)
@@ -546,6 +625,27 @@ class T9ImeService : InputMethodService() {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
             startActivity(intent)
+        }
+
+        // Clipboard history toggle in strip bar
+        clipboardButton.setOnClickListener {
+            performFeedback(SoundKind.ACTION)
+            commitActiveWord()
+            commitMultiTapChar()
+            symbolsOpen = false
+            clipboardOpen = !clipboardOpen
+            if (clipboardOpen) {
+                captureCurrentSystemClip()
+                renderClipboardHistory()
+            }
+            updatePanelVisibility()
+            val palette = currentPalette()
+            ImageViewCompat.setImageTintList(
+                clipboardButton,
+                ColorStateList.valueOf(
+                    Color.parseColor(if (clipboardOpen) palette.enterHex else palette.subTextHex)
+                )
+            )
         }
 
         // Dedicated T9 ON/OFF toggle next to Settings icon
@@ -629,7 +729,8 @@ class T9ImeService : InputMethodService() {
                 else -> InputMode.ABC
             }
             symbolsOpen = false
-            updateSymbolsVisibility()
+            clipboardOpen = false
+            updatePanelVisibility()
             refreshModeUI()
             renderCandidates()
         }
@@ -638,8 +739,9 @@ class T9ImeService : InputMethodService() {
             performFeedback(SoundKind.ACTION)
             commitActiveWord()
             commitMultiTapChar()
+            clipboardOpen = false
             symbolsOpen = !symbolsOpen
-            updateSymbolsVisibility()
+            updatePanelVisibility()
             renderSymbolPage()
         }
 
@@ -718,7 +820,7 @@ class T9ImeService : InputMethodService() {
         symBackBtn.setOnClickListener {
             performFeedback(SoundKind.ACTION)
             symbolsOpen = false
-            updateSymbolsVisibility()
+            updatePanelVisibility()
         }
         symbolPageBtn.setOnClickListener {
             performFeedback(SoundKind.ACTION)
@@ -732,9 +834,138 @@ class T9ImeService : InputMethodService() {
         attachContinuousBackspace(symBackspaceBtn)
     }
 
-    private fun updateSymbolsVisibility() {
-        numpadGrid.visibility = if (symbolsOpen) View.GONE else View.VISIBLE
+    private fun bindClipboardPanel() {
+        clipBackBtn.setOnClickListener {
+            performFeedback(SoundKind.ACTION)
+            clipboardOpen = false
+            updatePanelVisibility()
+        }
+        clipClearBtn.setOnClickListener {
+            performFeedback(SoundKind.ACTION)
+            clipboardHistory.clear()
+            persistClipboardHistory()
+            renderClipboardHistory()
+        }
+    }
+
+    private fun loadClipboardHistory() {
+        clipboardHistory.clear()
+        val json = prefs.getString(SettingsActivity.KEY_CLIPBOARD_HISTORY, "[]") ?: "[]"
+        try {
+            val arr = JSONArray(json)
+            for (i in 0 until arr.length()) {
+                val item = arr.optString(i, "").trim()
+                if (item.isNotEmpty() && !clipboardHistory.contains(item)) {
+                    clipboardHistory.add(item)
+                }
+            }
+        } catch (_: Throwable) {
+        }
+    }
+
+    private fun persistClipboardHistory() {
+        val arr = JSONArray()
+        clipboardHistory.take(25).forEach { arr.put(it) }
+        prefs.edit().putString(SettingsActivity.KEY_CLIPBOARD_HISTORY, arr.toString()).apply()
+    }
+
+    private fun captureCurrentSystemClip() {
+        val clip = clipboardManager?.primaryClip ?: return
+        if (clip.itemCount <= 0) return
+        val text = clip.getItemAt(0).coerceToText(this)?.toString()?.trim() ?: return
+        if (text.isEmpty()) return
+        if (clipboardHistory.firstOrNull() != text) {
+            clipboardHistory.remove(text)
+            clipboardHistory.add(0, text)
+            while (clipboardHistory.size > 25) {
+                clipboardHistory.removeAt(clipboardHistory.lastIndex)
+            }
+            persistClipboardHistory()
+            if (::clipboardList.isInitialized && clipboardOpen) {
+                mainHandler.post { renderClipboardHistory() }
+            }
+        }
+    }
+
+    private fun renderClipboardHistory() {
+        if (!::clipboardList.isInitialized) return
+        clipboardList.removeAllViews()
+        val palette = currentPalette()
+        val marginPx = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 4f, resources.displayMetrics).toInt()
+
+        if (clipboardHistory.isEmpty()) {
+            val emptyTv = TextView(this).apply {
+                text = "Clipboard is empty. Copy words or phrases back-to-back and tap any clip here to paste."
+                textSize = 13f
+                gravity = Gravity.CENTER
+                setPadding(24, 40, 24, 40)
+                setTextColor(Color.parseColor(palette.subTextHex))
+                background = makeRoundedDrawable(palette.secondaryHex, 16f)
+            }
+            clipboardList.addView(emptyTv)
+            return
+        }
+
+        clipboardHistory.forEachIndexed { idx, clipText ->
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                background = makeRoundedDrawable(palette.keyHex, 16f)
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    setMargins(0, 0, 0, marginPx)
+                }
+            }
+
+            val pasteTv = TextView(this).apply {
+                text = clipText
+                textSize = 14f
+                maxLines = 2
+                setPadding(24, 20, 12, 20)
+                setTextColor(Color.parseColor(palette.keyTextHex))
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                setOnClickListener {
+                    performFeedback(SoundKind.SPACE, keyChar = '0')
+                    commitActiveWord()
+                    commitMultiTapChar()
+                    val ic = currentInputConnection
+                    val before = ic?.getTextBeforeCursor(1, 0)?.toString() ?: ""
+                    val needsSpace = before.isNotEmpty() && !before.last().isWhitespace() && !clipText.first().isWhitespace()
+                    ic?.commitText((if (needsSpace) " " else "") + clipText, 1)
+                    updateAutoCapitalization()
+                    clipboardOpen = false
+                    updatePanelVisibility()
+                }
+            }
+
+            val removeBtn = TextView(this).apply {
+                text = "✕"
+                textSize = 14f
+                gravity = Gravity.CENTER
+                setPadding(22, 18, 22, 18)
+                setTextColor(Color.parseColor(palette.subTextHex))
+                setOnClickListener {
+                    performFeedback(SoundKind.ACTION)
+                    if (idx in clipboardHistory.indices) {
+                        clipboardHistory.removeAt(idx)
+                        persistClipboardHistory()
+                        renderClipboardHistory()
+                    }
+                }
+            }
+
+            row.addView(pasteTv)
+            row.addView(removeBtn)
+            clipboardList.addView(row)
+        }
+    }
+
+    private fun updatePanelVisibility() {
+        numpadGrid.visibility = if (!symbolsOpen && !clipboardOpen) View.VISIBLE else View.GONE
         symbolsPanel.visibility = if (symbolsOpen) View.VISIBLE else View.GONE
+        clipboardPanel.visibility = if (clipboardOpen) View.VISIBLE else View.GONE
         val modeLabel = when (inputMode) {
             InputMode.T9 -> "T9"
             InputMode.ABC -> "ABC"
@@ -742,6 +973,16 @@ class T9ImeService : InputMethodService() {
         }
         symButton.text = if (symbolsOpen) (if (inputMode == InputMode.NUM) "123" else "ABC") else "@#&"
         symBackBtn.text = "Back ($modeLabel)"
+        clipBackBtn.text = "Back ($modeLabel)"
+        if (::clipboardButton.isInitialized) {
+            val palette = currentPalette()
+            ImageViewCompat.setImageTintList(
+                clipboardButton,
+                ColorStateList.valueOf(
+                    Color.parseColor(if (clipboardOpen) palette.enterHex else palette.subTextHex)
+                )
+            )
+        }
     }
 
     private fun renderSymbolPage() {
@@ -770,7 +1011,7 @@ class T9ImeService : InputMethodService() {
                 minHeight = 0
                 setPadding(0, 0, 0, 0)
                 setTextColor(Color.parseColor(palette.keyTextHex))
-                background = makeRoundedDrawable(palette.keyHex, 14f)
+                background = makeRoundedDrawable(palette.keyHex, 16f)
                 layoutParams = GridLayout.LayoutParams().apply {
                     width = 0
                     height = heightPx
@@ -1075,6 +1316,31 @@ class T9ImeService : InputMethodService() {
             }
         }
         return raw
+    }
+
+    private fun getPopupLabelForDigit(digit: Char): String {
+        if (inputMode == InputMode.NUM) return digit.toString()
+        if (digit == '0') return "␣"
+        if (digit == '1') return punctCycle[0]
+        val letters = T9Engine.MULTITAP_MAP[digit] ?: return digit.toString()
+        if (inputMode == InputMode.ABC) {
+            val nextIdx = if (lastMultiTapKey == digit) {
+                (multiTapCycleIndex + 1) % letters.size
+            } else {
+                0
+            }
+            return applyCase(letters[nextIdx].toString())
+        }
+        val nextDigits = composingDigits.toString() + digit
+        val topWord = t9Engine.predict(nextDigits, 1).firstOrNull()?.word
+        val ch = topWord?.getOrNull(composingDigits.length) ?: letters.firstOrNull() ?: digit
+        return if (composingDigits.isEmpty()) {
+            applyCase(ch.toString())
+        } else if (caseMode == CaseMode.UPPER) {
+            ch.uppercase()
+        } else {
+            ch.lowercase()
+        }
     }
 
     private fun renderCandidates() {

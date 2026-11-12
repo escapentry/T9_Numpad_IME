@@ -256,6 +256,13 @@
                         android:textStyle="bold" />
                 </LinearLayout>
             </LinearLayout>
+
+            <com.google.android.material.switchmaterial.SwitchMaterial
+                android:id="@+id/switch_launcher_icon"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:text="Show app icon in launcher (hidden by default)" />
         </LinearLayout>
 
         <!-- SECTION 2: Keyboard Height -->
