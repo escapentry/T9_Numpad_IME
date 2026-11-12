@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">T9 Numpad IME</string>
+    <string name="ime_name">T9 Numpad (One-Handed)</string>
+    <string name="subtype_en_us">English (US) T9 12-Key</string>
+</resources>
