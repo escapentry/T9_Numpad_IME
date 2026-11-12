@@ -15,6 +15,9 @@
         <item name="android:minWidth">0dp</item>
         <item name="android:minHeight">0dp</item>
         <item name="android:padding">0dp</item>
+        <item name="android:gravity">center</item>
+        <item name="android:textAlignment">center</item>
+        <item name="android:includeFontPadding">false</item>
         <item name="android:background">@android:color/transparent</item>
         <item name="android:textColor">@color/md_theme_onSurfaceVariant</item>
         <item name="android:textSize">16sp</item>
@@ -40,15 +43,23 @@
         <item name="android:minWidth">0dp</item>
         <item name="android:minHeight">0dp</item>
         <item name="android:padding">0dp</item>
+        <item name="android:gravity">center</item>
+        <item name="android:textAlignment">center</item>
+        <item name="android:includeFontPadding">false</item>
+        <item name="android:insetTop">0dp</item>
+        <item name="android:insetBottom">0dp</item>
+        <item name="android:insetLeft">0dp</item>
+        <item name="android:insetRight">0dp</item>
         <item name="android:background">@drawable/bg_numpad_action</item>
         <item name="android:backgroundTint">@null</item>
         <item name="android:textColor">@color/md_theme_onPrimaryContainer</item>
-        <item name="android:textSize">15sp</item>
+        <item name="android:textSize">14sp</item>
         <item name="android:textAllCaps">false</item>
     </style>
 
     <style name="NumpadSecondaryKey" parent="NumpadActionKey">
         <item name="android:layout_columnWeight">1</item>
+        <item name="android:textSize">13sp</item>
     </style>
 
     <style name="NumpadEnterKey" parent="NumpadActionKey">

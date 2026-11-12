@@ -17,6 +17,7 @@ class SettingsActivity : AppCompatActivity() {
         const val KEY_THEME = "ime_theme"
         const val KEY_HEIGHT = "ime_height"
         const val KEY_SOUND = "ime_sound"
+        const val KEY_HAPTIC = "ime_haptic"
         const val KEY_AUTO_CAP = "ime_auto_cap"
         const val KEY_AUTO_SPACE = "ime_auto_space"
         const val KEY_AUTO_CORRECT_ABC = "ime_auto_correct_abc_only"
@@ -31,6 +32,7 @@ class SettingsActivity : AppCompatActivity() {
         val themeGroup = findViewById<RadioGroup>(R.id.rg_theme)
         val heightGroup = findViewById<RadioGroup>(R.id.rg_height)
         val switchSound = findViewById<SwitchMaterial>(R.id.switch_sound)
+        val switchHaptic = findViewById<SwitchMaterial>(R.id.switch_haptic)
         val switchAutoCap = findViewById<SwitchMaterial>(R.id.switch_auto_cap)
         val switchAutoSpace = findViewById<SwitchMaterial>(R.id.switch_auto_space)
         val switchAutoCorrectAbc = findViewById<SwitchMaterial>(R.id.switch_auto_correct_abc)
@@ -39,7 +41,6 @@ class SettingsActivity : AppCompatActivity() {
         when (prefs.getString(KEY_THEME, "material_light")) {
             "material_dark" -> themeGroup.check(R.id.rb_theme_dark)
             "amoled" -> themeGroup.check(R.id.rb_theme_amoled)
-            "classic_3310" -> themeGroup.check(R.id.rb_theme_classic)
             else -> themeGroup.check(R.id.rb_theme_light)
         }
 
@@ -50,6 +51,7 @@ class SettingsActivity : AppCompatActivity() {
         }
 
         switchSound.isChecked = prefs.getBoolean(KEY_SOUND, true)
+        switchHaptic.isChecked = prefs.getBoolean(KEY_HAPTIC, true)
         switchAutoCap.isChecked = prefs.getBoolean(KEY_AUTO_CAP, true)
         switchAutoSpace.isChecked = prefs.getBoolean(KEY_AUTO_SPACE, true)
         switchAutoCorrectAbc.isChecked = prefs.getBoolean(KEY_AUTO_CORRECT_ABC, true)
@@ -58,7 +60,6 @@ class SettingsActivity : AppCompatActivity() {
             val value = when (checkedId) {
                 R.id.rb_theme_dark -> "material_dark"
                 R.id.rb_theme_amoled -> "amoled"
-                R.id.rb_theme_classic -> "classic_3310"
                 else -> "material_light"
             }
             prefs.edit().putString(KEY_THEME, value).apply()
@@ -75,6 +76,9 @@ class SettingsActivity : AppCompatActivity() {
 
         switchSound.setOnCheckedChangeListener { _, isChecked ->
             prefs.edit().putBoolean(KEY_SOUND, isChecked).apply()
+        }
+        switchHaptic.setOnCheckedChangeListener { _, isChecked ->
+            prefs.edit().putBoolean(KEY_HAPTIC, isChecked).apply()
         }
         switchAutoCap.setOnCheckedChangeListener { _, isChecked ->
             prefs.edit().putBoolean(KEY_AUTO_CAP, isChecked).apply()

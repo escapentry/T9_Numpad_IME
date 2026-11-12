@@ -55,7 +55,6 @@
             <RadioButton android:id="@+id/rb_theme_light" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Material Light" />
             <RadioButton android:id="@+id/rb_theme_dark" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Material Dark" />
             <RadioButton android:id="@+id/rb_theme_amoled" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="AMOLED Black" />
-            <RadioButton android:id="@+id/rb_theme_classic" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Classic 3310" />
         </RadioGroup>
 
         <TextView
@@ -91,6 +90,12 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
             android:text="Sound on keypress" />
+
+        <com.google.android.material.switchmaterial.SwitchMaterial
+            android:id="@+id/switch_haptic"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Haptic vibration on keypress" />
 
         <com.google.android.material.switchmaterial.SwitchMaterial
             android:id="@+id/switch_auto_cap"

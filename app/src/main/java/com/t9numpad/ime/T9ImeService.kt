@@ -13,6 +13,7 @@ import android.util.TypedValue
 import android.view.Gravity
 import android.view.HapticFeedbackConstants
 import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.widget.Button
@@ -34,9 +35,11 @@ class T9ImeService : InputMethodService() {
     private lateinit var symbolPageBtn: Button
     private lateinit var candidateContainer: LinearLayout
     private lateinit var candidateScroll: HorizontalScrollView
+    private lateinit var caseBadge: TextView
     private lateinit var modeButton: Button
     private lateinit var symButton: Button
     private lateinit var shiftButton: Button
+    private lateinit var enterButton: Button
     private lateinit var settingsButton: View
 
     private val t9Engine = T9Engine()
@@ -59,10 +62,27 @@ class T9ImeService : InputMethodService() {
     private val multiTapCommitRunnable = Runnable { commitMultiTapChar() }
     private val multiTapTimeoutMs = 700L
 
+    // Punctuation cycle state for key 1
+    private val punctCycle = listOf(".", ",", "?", "!", "'", "-", ":", "/", "@", "\"")
+    private var lastPunctTimeMs = 0L
+    private var lastPunctIndex = -1
+    private var lastPunctAddedSpace = false
+
+    // Continuous hold-to-delete character by character
+    private var isBackspaceHeld = false
+    private val backspaceRepeatRunnable = object : Runnable {
+        override fun run() {
+            if (!isBackspaceHeld) return
+            handleBackspace()
+            mainHandler.postDelayed(this, 70L)
+        }
+    }
+
     // Settings state
     private var themeId = "material_light"
     private var keyHeightId = "standard"
     private var soundEnabled = true
+    private var hapticEnabled = true
     private var autoCapitalize = true
     private var autoSpacing = true
     private var autoCorrectWhenT9Off = true
@@ -91,9 +111,11 @@ class T9ImeService : InputMethodService() {
         symbolPageBtn = rootView.findViewById(R.id.btn_sym_page)
         candidateContainer = rootView.findViewById(R.id.candidate_container)
         candidateScroll = rootView.findViewById(R.id.candidate_scroll)
+        caseBadge = rootView.findViewById(R.id.case_badge)
         modeButton = rootView.findViewById(R.id.key_mode)
         symButton = rootView.findViewById(R.id.key_sym)
         shiftButton = rootView.findViewById(R.id.key_star)
+        enterButton = rootView.findViewById(R.id.key_enter)
         settingsButton = rootView.findViewById(R.id.btn_ime_settings)
 
         bindDigitKeys()
@@ -122,8 +144,12 @@ class T9ImeService : InputMethodService() {
 
     private fun loadAndApplySettings() {
         themeId = prefs.getString(SettingsActivity.KEY_THEME, "material_light") ?: "material_light"
+        if (themeId != "material_light" && themeId != "material_dark" && themeId != "amoled") {
+            themeId = "material_light"
+        }
         keyHeightId = prefs.getString(SettingsActivity.KEY_HEIGHT, "standard") ?: "standard"
         soundEnabled = prefs.getBoolean(SettingsActivity.KEY_SOUND, true)
+        hapticEnabled = prefs.getBoolean(SettingsActivity.KEY_HAPTIC, true)
         autoCapitalize = prefs.getBoolean(SettingsActivity.KEY_AUTO_CAP, true)
         autoSpacing = prefs.getBoolean(SettingsActivity.KEY_AUTO_SPACE, true)
         autoCorrectWhenT9Off = prefs.getBoolean(SettingsActivity.KEY_AUTO_CORRECT_ABC, true)
@@ -142,8 +168,16 @@ class T9ImeService : InputMethodService() {
         val keyTextHex: String,
         val subTextHex: String,
         val actionTextHex: String,
-        val enterTextHex: String
+        val enterTextHex: String,
+        val shiftActiveBg: String,
+        val shiftActiveText: String
     )
+
+    private fun currentPalette(): ThemePalette = when (themeId) {
+        "material_dark" -> ThemePalette("#1B1C1F", "#2E3036", "#3A4352", "#25272C", "#A8C7FA", "#E8EAED", "#9AA0A6", "#D3E3FD", "#062E6F", "#3A4352", "#A8C7FA")
+        "amoled" -> ThemePalette("#000000", "#141417", "#1D2433", "#101013", "#2563EB", "#F4F4F5", "#A1A1AA", "#BFDBFE", "#FFFFFF", "#1D2433", "#93C5FD")
+        else -> ThemePalette("#ECEFF4", "#FFFFFF", "#D3E3FD", "#DFE5EE", "#0B57D0", "#1F1F1F", "#5F6368", "#041E49", "#FFFFFF", "#D3E3FD", "#0B57D0")
+    }
 
     private fun applyThemeAndHeight() {
         val heightDp = when (keyHeightId) {
@@ -157,12 +191,7 @@ class T9ImeService : InputMethodService() {
             resources.displayMetrics
         ).toInt()
 
-        val palette = when (themeId) {
-            "material_dark" -> ThemePalette("#1B1C1F", "#2E3036", "#3A4352", "#25272C", "#A8C7FA", "#E8EAED", "#9AA0A6", "#D3E3FD", "#062E6F")
-            "amoled" -> ThemePalette("#000000", "#141417", "#1D2433", "#101013", "#2563EB", "#F4F4F5", "#A1A1AA", "#BFDBFE", "#FFFFFF")
-            "classic_3310" -> ThemePalette("#8EA47B", "#283320", "#3A482F", "#323F28", "#192113", "#D4E6C3", "#9BB588", "#E1F0D2", "#D4E6C3")
-            else -> ThemePalette("#ECEFF4", "#FFFFFF", "#D3E3FD", "#DFE5EE", "#0B57D0", "#1F1F1F", "#5F6368", "#041E49", "#FFFFFF")
-        }
+        val palette = currentPalette()
 
         rootView.setBackgroundColor(Color.parseColor(palette.trayHex))
         stripBar.setBackgroundColor(Color.parseColor(palette.trayHex))
@@ -310,17 +339,9 @@ class T9ImeService : InputMethodService() {
         }
 
         val backspaceBtn = rootView.findViewById<View>(R.id.key_backspace)
-        backspaceBtn.setOnClickListener { view ->
-            performFeedback(view)
-            handleBackspace()
-        }
-        backspaceBtn.setOnLongClickListener { view ->
-            performFeedback(view, strong = true)
-            deletePreviousWord()
-            true
-        }
+        attachContinuousBackspace(backspaceBtn)
 
-        rootView.findViewById<View>(R.id.key_enter).setOnClickListener { view ->
+        enterButton.setOnClickListener { view ->
             performFeedback(view, strong = true)
             commitActiveWord()
             commitMultiTapChar()
@@ -335,6 +356,36 @@ class T9ImeService : InputMethodService() {
                 ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ENTER))
             }
             updateAutoCapitalization()
+        }
+
+        caseBadge.setOnClickListener { view ->
+            if (inputMode != InputMode.NUM) {
+                performFeedback(view)
+                cycleCaseMode()
+            }
+        }
+    }
+
+    private fun attachContinuousBackspace(button: View) {
+        button.setOnTouchListener { v, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    v.isPressed = true
+                    isBackspaceHeld = true
+                    performFeedback(v)
+                    handleBackspace()
+                    mainHandler.removeCallbacks(backspaceRepeatRunnable)
+                    mainHandler.postDelayed(backspaceRepeatRunnable, 340L)
+                    true
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    v.isPressed = false
+                    isBackspaceHeld = false
+                    mainHandler.removeCallbacks(backspaceRepeatRunnable)
+                    true
+                }
+                else -> false
+            }
         }
     }
 
@@ -353,16 +404,17 @@ class T9ImeService : InputMethodService() {
             performFeedback(view)
             handleSpaceTap()
         }
-        rootView.findViewById<View>(R.id.btn_sym_backspace).setOnClickListener { view ->
-            performFeedback(view)
-            handleBackspace()
-        }
+        attachContinuousBackspace(rootView.findViewById(R.id.btn_sym_backspace))
     }
 
     private fun updateSymbolsVisibility() {
         numpadGrid.visibility = if (symbolsOpen) View.GONE else View.VISIBLE
         symbolsPanel.visibility = if (symbolsOpen) View.VISIBLE else View.GONE
-        symButton.text = if (symbolsOpen) "ABC" else "@#&"
+        symButton.text = if (symbolsOpen) when (inputMode) {
+            InputMode.T9 -> "T9"
+            InputMode.ABC -> "ABC"
+            InputMode.NUM -> "123"
+        } else "@#&"
     }
 
     private fun renderSymbolPage() {
@@ -370,29 +422,24 @@ class T9ImeService : InputMethodService() {
         symbolsGrid.removeAllViews()
         symbolPageBtn.text = "Page ${symbolPage + 1}/${symbolPages.size}"
 
-        val isDark = themeId == "material_dark" || themeId == "amoled" || themeId == "classic_3310"
-        val bgHex = when (themeId) {
-            "material_dark" -> "#2E3036"
-            "amoled" -> "#141417"
-            "classic_3310" -> "#283320"
-            else -> "#FFFFFF"
-        }
-        val fgHex = if (themeId == "classic_3310") "#D4E6C3" else if (isDark) "#E8EAED" else "#1F1F1F"
-
+        val palette = currentPalette()
         val items = symbolPages[symbolPage]
         val heightPx = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 44f, resources.displayMetrics).toInt()
         val marginPx = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 3f, resources.displayMetrics).toInt()
 
         items.forEach { sym ->
-            val btn = Button(this).apply {
+            val btn = androidx.appcompat.widget.AppCompatButton(this).apply {
                 text = sym
                 textSize = 16f
                 isAllCaps = false
+                gravity = Gravity.CENTER
+                textAlignment = View.TEXT_ALIGNMENT_CENTER
+                includeFontPadding = false
                 minWidth = 0
                 minHeight = 0
                 setPadding(0, 0, 0, 0)
-                setTextColor(Color.parseColor(fgHex))
-                background = makeRoundedDrawable(bgHex, 12f)
+                setTextColor(Color.parseColor(palette.keyTextHex))
+                background = makeRoundedDrawable(palette.keyHex, 12f)
                 layoutParams = GridLayout.LayoutParams().apply {
                     width = 0
                     height = heightPx
@@ -427,6 +474,43 @@ class T9ImeService : InputMethodService() {
         updateAutoCapitalization()
     }
 
+    private fun handleKey1Punctuation() {
+        val ic = currentInputConnection ?: return
+        commitActiveWord()
+        commitMultiTapChar()
+        maybeAutoCorrectAbcWord()
+
+        val now = System.currentTimeMillis()
+        val withinCycle = (now - lastPunctTimeMs) < 900L && lastPunctIndex >= 0
+        val prevPunct = if (withinCycle) punctCycle[lastPunctIndex] else null
+        val prevSuffix = if (prevPunct != null) {
+            if (lastPunctAddedSpace) "$prevPunct " else prevPunct
+        } else ""
+
+        val before = ic.getTextBeforeCursor(4, 0)?.toString() ?: ""
+        if (withinCycle && prevSuffix.isNotEmpty() && before.endsWith(prevSuffix)) {
+            val nextIdx = (lastPunctIndex + 1) % punctCycle.size
+            val nextPunct = punctCycle[nextIdx]
+            val addSpace = autoSpacing && autoSpacePunct.contains(nextPunct)
+            lastPunctIndex = nextIdx
+            lastPunctTimeMs = now
+            lastPunctAddedSpace = addSpace
+            ic.deleteSurroundingText(prevSuffix.length, 0)
+            ic.commitText(if (addSpace) "$nextPunct " else nextPunct, 1)
+        } else {
+            val nextPunct = punctCycle[0]
+            val addSpace = autoSpacing && autoSpacePunct.contains(nextPunct)
+            if (autoSpacing && before.endsWith(" ")) {
+                ic.deleteSurroundingText(1, 0)
+            }
+            lastPunctIndex = 0
+            lastPunctTimeMs = now
+            lastPunctAddedSpace = addSpace
+            ic.commitText(if (addSpace) "$nextPunct " else nextPunct, 1)
+        }
+        updateAutoCapitalization()
+    }
+
     private fun handleDigitTap(digit: Char) {
         val ic = currentInputConnection ?: return
 
@@ -441,7 +525,7 @@ class T9ImeService : InputMethodService() {
         }
 
         if (digit == '1') {
-            insertPunctuationOrSymbol(".")
+            handleKey1Punctuation()
             return
         }
 
@@ -540,21 +624,16 @@ class T9ImeService : InputMethodService() {
         }
 
         ic.deleteSurroundingText(1, 0)
-        updateAutoCapitalization()
-    }
-
-    private fun deletePreviousWord() {
-        val ic = currentInputConnection ?: return
-        if (composingDigits.isNotEmpty()) {
-            resetComposition()
-            ic.setComposingText("", 1)
-            return
+        if (autoCapitalize) {
+            val before = ic.getTextBeforeCursor(32, 0)?.toString() ?: ""
+            if (before.isEmpty() || before.endsWith(". ") || before.endsWith("! ") || before.endsWith("? ") || before.endsWith("\n")) {
+                caseMode = CaseMode.TITLE
+                refreshModeUI()
+            } else if (before.lastOrNull()?.isLetter() == true && caseMode == CaseMode.TITLE) {
+                caseMode = CaseMode.LOWER
+                refreshModeUI()
+            }
         }
-        val before = ic.getTextBeforeCursor(40, 0)?.toString() ?: return
-        val trimmedLen = before.trimEnd().length
-        val lastSpace = before.substring(0, trimmedLen).lastIndexOf(' ')
-        val deleteCount = if (lastSpace >= 0) before.length - lastSpace - 1 else before.length
-        if (deleteCount > 0) ic.deleteSurroundingText(deleteCount, 0)
     }
 
     private fun updateComposingWord() {
@@ -610,15 +689,10 @@ class T9ImeService : InputMethodService() {
 
     private fun renderCandidates() {
         candidateContainer.removeAllViews()
-        val isDark = themeId == "material_dark" || themeId == "amoled" || themeId == "classic_3310"
-        val normalColor = if (themeId == "classic_3310") Color.parseColor("#D4E6C3") else if (isDark) Color.parseColor("#E8EAED") else Color.parseColor("#1F1F1F")
-        val activeTextColor = if (themeId == "amoled") Color.parseColor("#BFDBFE") else if (themeId == "classic_3310") Color.parseColor("#E1F0D2") else if (isDark) Color.parseColor("#D3E3FD") else Color.parseColor("#041E49")
-        val activeBgHex = when (themeId) {
-            "material_dark" -> "#3A4352"
-            "amoled" -> "#1D2433"
-            "classic_3310" -> "#283320"
-            else -> "#D3E3FD"
-        }
+        val palette = currentPalette()
+        val normalColor = Color.parseColor(palette.keyTextHex)
+        val activeTextColor = Color.parseColor(palette.actionTextHex)
+        val activeBgHex = palette.actionHex
 
         candidates.forEachIndexed { idx, candidate ->
             val tv = TextView(this).apply {
@@ -648,16 +722,72 @@ class T9ImeService : InputMethodService() {
 
     private fun refreshModeUI() {
         if (!::modeButton.isInitialized) return
-        modeButton.text = when (inputMode) {
+        val modeLabel = when (inputMode) {
             InputMode.T9 -> "T9"
             InputMode.ABC -> "ABC"
             InputMode.NUM -> "123"
         }
+        modeButton.text = modeLabel
+
+        val caseLabel = when (caseMode) {
+            CaseMode.LOWER -> "abc"
+            CaseMode.TITLE -> "Abc"
+            CaseMode.UPPER -> "ABC"
+        }
+
+        val palette = currentPalette()
+        if (inputMode == InputMode.NUM) {
+            shiftButton.text = "*"
+            shiftButton.background = makeRoundedDrawable(palette.secondaryHex, 16f)
+            shiftButton.setTextColor(Color.parseColor(palette.keyTextHex))
+            caseBadge.text = "123"
+            caseBadge.background = makeRoundedDrawable(palette.actionHex, 8f)
+            caseBadge.setTextColor(Color.parseColor(palette.actionTextHex))
+        } else {
+            shiftButton.text = when (caseMode) {
+                CaseMode.LOWER -> "* ⇧\nabc"
+                CaseMode.TITLE -> "* ⇧\nAbc"
+                CaseMode.UPPER -> "* ⇪\nABC"
+            }
+            when (caseMode) {
+                CaseMode.UPPER -> {
+                    shiftButton.background = makeRoundedDrawable(palette.enterHex, 16f)
+                    shiftButton.setTextColor(Color.parseColor(palette.enterTextHex))
+                    caseBadge.background = makeRoundedDrawable(palette.enterHex, 8f)
+                    caseBadge.setTextColor(Color.parseColor(palette.enterTextHex))
+                }
+                CaseMode.TITLE -> {
+                    shiftButton.background = makeRoundedDrawable(palette.shiftActiveBg, 16f)
+                    shiftButton.setTextColor(Color.parseColor(palette.shiftActiveText))
+                    caseBadge.background = makeRoundedDrawable(palette.shiftActiveBg, 8f)
+                    caseBadge.setTextColor(Color.parseColor(palette.shiftActiveText))
+                }
+                CaseMode.LOWER -> {
+                    shiftButton.background = makeRoundedDrawable(palette.secondaryHex, 16f)
+                    shiftButton.setTextColor(Color.parseColor(palette.keyTextHex))
+                    caseBadge.background = makeRoundedDrawable(palette.secondaryHex, 8f)
+                    caseBadge.setTextColor(Color.parseColor(palette.keyTextHex))
+                }
+            }
+            caseBadge.text = "$modeLabel · $caseLabel"
+        }
+
+        val actionId = currentInputEditorInfo?.imeOptions?.and(EditorInfo.IME_MASK_ACTION)
+            ?: EditorInfo.IME_ACTION_NONE
+        enterButton.text = when (actionId) {
+            EditorInfo.IME_ACTION_SEND -> "➤"
+            EditorInfo.IME_ACTION_SEARCH -> "🔍"
+            EditorInfo.IME_ACTION_GO, EditorInfo.IME_ACTION_NEXT -> "→"
+            EditorInfo.IME_ACTION_DONE -> "✓"
+            else -> "↵"
+        }
     }
 
     private fun performFeedback(view: View, strong: Boolean = false) {
-        val flag = if (strong) HapticFeedbackConstants.LONG_PRESS else HapticFeedbackConstants.KEYBOARD_TAP
-        view.performHapticFeedback(flag)
+        if (hapticEnabled) {
+            val flag = if (strong) HapticFeedbackConstants.LONG_PRESS else HapticFeedbackConstants.KEYBOARD_TAP
+            view.performHapticFeedback(flag)
+        }
         if (soundEnabled) {
             audioManager?.playSoundEffect(AudioManager.FX_KEY_CLICK, 0.7f)
         }

@@ -8,13 +8,25 @@
     android:paddingTop="4dp"
     android:paddingBottom="10dp">
 
-    <!-- Gboard Suggestion Strip + Settings Button -->
+    <!-- Gboard Suggestion Strip + Case Badge + Settings Button -->
     <LinearLayout
         android:id="@+id/strip_bar"
         android:layout_width="match_parent"
         android:layout_height="44dp"
         android:gravity="center_vertical"
+        android:paddingHorizontal="4dp"
         android:orientation="horizontal">
+
+        <TextView
+            android:id="@+id/case_badge"
+            android:layout_width="wrap_content"
+            android:layout_height="28dp"
+            android:gravity="center"
+            android:includeFontPadding="false"
+            android:paddingHorizontal="10dp"
+            android:text="T9 · Abc"
+            android:textSize="12sp"
+            android:textStyle="bold" />
 
         <HorizontalScrollView
             android:id="@+id/candidate_scroll"
@@ -29,7 +41,7 @@
                 android:layout_height="match_parent"
                 android:gravity="center_vertical"
                 android:orientation="horizontal"
-                android:paddingHorizontal="8dp" />
+                android:paddingHorizontal="6dp" />
         </HorizontalScrollView>
 
         <androidx.appcompat.widget.AppCompatButton
@@ -106,7 +118,7 @@
 
         <LinearLayout android:id="@+id/key_0" style="@style/NumpadKey">
             <TextView style="@style/NumpadDigit" android:text="0" />
-            <TextView style="@style/NumpadLetters" android:text="␣ +" />
+            <TextView style="@style/NumpadLetters" android:text="␣" />
         </LinearLayout>
 
         <androidx.appcompat.widget.AppCompatButton android:id="@+id/key_hash" style="@style/NumpadSecondaryKey" android:text="# ↻" />
@@ -157,7 +169,7 @@
                 android:layout_width="0dp"
                 android:layout_height="44dp"
                 android:layout_weight="1"
-                android:text="␣" />
+                android:text="Space" />
 
             <androidx.appcompat.widget.AppCompatButton
                 android:id="@+id/btn_sym_backspace"
