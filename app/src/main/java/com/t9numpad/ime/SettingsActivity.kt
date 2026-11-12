@@ -43,6 +43,7 @@ class SettingsActivity : AppCompatActivity() {
         const val KEY_AUTO_CORRECT_ABC = "ime_auto_correct_abc_only"
         const val KEY_CUSTOM_WORDS = "ime_custom_words"
         const val KEY_LEARNED_FREQS = "ime_learned_freqs"
+        const val KEY_LEARNED_BIGRAMS = "ime_learned_bigrams"
         const val KEY_SHOW_LAUNCHER_ICON = "ime_show_launcher_icon"
         const val KEY_CLIPBOARD_HISTORY = "ime_clipboard_history"
     }

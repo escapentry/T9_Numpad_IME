@@ -24,18 +24,20 @@ import android.view.Gravity
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
 import android.widget.Button
+import android.widget.FrameLayout
 import android.widget.GridLayout
 import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
-import android.widget.PopupWindow
 import android.widget.ScrollView
 import android.widget.TextView
 import androidx.appcompat.widget.AppCompatButton
 import androidx.appcompat.widget.AppCompatImageButton
 import androidx.core.widget.ImageViewCompat
 import org.json.JSONArray
+import org.json.JSONObject
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import kotlin.math.PI
@@ -49,6 +51,9 @@ class T9ImeService : InputMethodService() {
     enum class CaseMode { LOWER, TITLE, UPPER }
 
     private lateinit var rootView: View
+    private lateinit var trayWrapper: View
+    private lateinit var trayContainer: View
+    private lateinit var popupOverlayLayer: FrameLayout
     private lateinit var stripBar: View
     private lateinit var numpadGrid: GridLayout
     private lateinit var symbolsPanel: LinearLayout
@@ -71,6 +76,7 @@ class T9ImeService : InputMethodService() {
     private lateinit var modeButton: AppCompatButton
     private lateinit var symButton: AppCompatButton
     private lateinit var shiftButton: AppCompatButton
+    private lateinit var hashButton: AppCompatButton
     private lateinit var backspaceButton: AppCompatImageButton
     private lateinit var enterButton: AppCompatImageButton
     private lateinit var settingsButton: AppCompatImageButton
@@ -83,7 +89,6 @@ class T9ImeService : InputMethodService() {
     private val clipboardHistory = ArrayList<String>()
 
     private val pcmCache = HashMap<String, ByteArray>()
-    private var keyPopupWindow: PopupWindow? = null
     private var keyPopupView: TextView? = null
     private val dismissPopupRunnable = Runnable { dismissKeyPopupImmediate() }
 
@@ -154,6 +159,7 @@ class T9ImeService : InputMethodService() {
         t9Engine.loadDictionary(assets.open("t9_words.txt"))
         syncCustomWordsFromPrefs()
         syncLearnedFreqsFromPrefs()
+        syncLearnedBigramsFromPrefs()
         loadClipboardHistory()
         clipboardManager = getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
         clipboardManager?.addPrimaryClipChangedListener(clipChangedListener)
@@ -168,13 +174,36 @@ class T9ImeService : InputMethodService() {
         audioExecutor.shutdownNow()
     }
 
+    @Suppress("DEPRECATION")
+    private fun applyBlackNavBarAppearance() {
+        val win = window?.window ?: return
+        win.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        win.navigationBarColor = Color.BLACK
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            win.decorView.systemUiVisibility =
+                win.decorView.systemUiVisibility and View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR.inv()
+        }
+    }
+
     override fun onWindowShown() {
         super.onWindowShown()
-        window?.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        applyBlackNavBarAppearance()
+    }
+
+    override fun onComputeInsets(outInsets: Insets) {
+        super.onComputeInsets(outInsets)
+        if (!::trayWrapper.isInitialized || trayWrapper.height == 0) return
+        val topOfTray = trayWrapper.top
+        outInsets.contentTopInsets = topOfTray
+        outInsets.visibleTopInsets = topOfTray
+        outInsets.touchableInsets = Insets.TOUCHABLE_INSETS_CONTENT
     }
 
     override fun onCreateInputView(): View {
         rootView = layoutInflater.inflate(R.layout.keyboard_t9_numpad, null)
+        trayWrapper = rootView.findViewById(R.id.ime_tray_wrapper)
+        trayContainer = rootView.findViewById(R.id.keyboard_tray)
+        popupOverlayLayer = rootView.findViewById(R.id.popup_overlay_layer)
         stripBar = rootView.findViewById(R.id.strip_bar)
         numpadGrid = rootView.findViewById(R.id.numpad_grid)
         symbolsPanel = rootView.findViewById(R.id.symbols_panel)
@@ -197,6 +226,7 @@ class T9ImeService : InputMethodService() {
         modeButton = rootView.findViewById(R.id.key_mode)
         symButton = rootView.findViewById(R.id.key_sym)
         shiftButton = rootView.findViewById(R.id.key_star)
+        hashButton = rootView.findViewById(R.id.key_hash)
         backspaceButton = rootView.findViewById(R.id.key_backspace)
         enterButton = rootView.findViewById(R.id.key_enter)
         settingsButton = rootView.findViewById(R.id.btn_ime_settings)
@@ -212,11 +242,12 @@ class T9ImeService : InputMethodService() {
 
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
         super.onStartInputView(info, restarting)
-        window?.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        applyBlackNavBarAppearance()
         captureCurrentSystemClip()
         loadAndApplySettings()
         syncCustomWordsFromPrefs()
         syncLearnedFreqsFromPrefs()
+        syncLearnedBigramsFromPrefs()
         resetComposition()
         isSpellingToDict = false
         symbolsOpen = false
@@ -265,10 +296,45 @@ class T9ImeService : InputMethodService() {
         t9Engine.applyLearnedFrequencies(map)
     }
 
-    private fun recordWordUsage(rawWord: String) {
+    private fun syncLearnedBigramsFromPrefs() {
+        val raw = prefs.getString(SettingsActivity.KEY_LEARNED_BIGRAMS, "{}") ?: "{}"
+        val map = HashMap<String, MutableMap<String, Int>>()
+        try {
+            val obj = JSONObject(raw)
+            val keys = obj.keys()
+            while (keys.hasNext()) {
+                val prevW = keys.next().lowercase()
+                val inner = obj.optJSONObject(prevW) ?: continue
+                val innerMap = HashMap<String, Int>()
+                val iKeys = inner.keys()
+                while (iKeys.hasNext()) {
+                    val nextW = iKeys.next().lowercase()
+                    val count = inner.optInt(nextW, 0)
+                    if (count > 0) innerMap[nextW] = count
+                }
+                if (innerMap.isNotEmpty()) map[prevW] = innerMap
+            }
+        } catch (_: Throwable) {
+        }
+        t9Engine.applyLearnedBigrams(map)
+    }
+
+    private fun getPreviousWordBeforeCursor(skipCurrentWord: Boolean = false): String {
+        val before = currentInputConnection?.getTextBeforeCursor(64, 0)?.toString() ?: return ""
+        val target = if (skipCurrentWord) {
+            before.replace(Regex("[a-zA-Z]+$"), "")
+        } else {
+            before
+        }
+        val match = Regex("([a-zA-Z']+)\\s+$").find(target) ?: return ""
+        return match.groupValues[1].lowercase().filter { it in 'a'..'z' }
+    }
+
+    private fun recordWordUsage(rawWord: String, prevWord: String = "") {
         val clean = rawWord.lowercase().trim().filter { it in 'a'..'z' }
         if (clean.length < 2) return
-        val newCount = t9Engine.recordWordUsage(clean)
+        val cleanPrev = prevWord.lowercase().trim().filter { it in 'a'..'z' }
+        val newCount = t9Engine.recordWordUsage(clean, cleanPrev)
         val raw = prefs.getString(SettingsActivity.KEY_LEARNED_FREQS, "") ?: ""
         val map = LinkedHashMap<String, Int>()
         raw.split(",").forEach { entry ->
@@ -284,7 +350,19 @@ class T9ImeService : InputMethodService() {
             .sortedByDescending { it.value }
             .take(300)
             .joinToString(",") { "${it.key}:${it.value}" }
-        prefs.edit().putString(SettingsActivity.KEY_LEARNED_FREQS, serialized).apply()
+
+        val editor = prefs.edit().putString(SettingsActivity.KEY_LEARNED_FREQS, serialized)
+        if (cleanPrev.isNotEmpty() && cleanPrev != clean) {
+            try {
+                val obj = JSONObject(prefs.getString(SettingsActivity.KEY_LEARNED_BIGRAMS, "{}") ?: "{}")
+                val inner = obj.optJSONObject(cleanPrev) ?: JSONObject()
+                inner.put(clean, inner.optInt(clean, 0) + 1)
+                obj.put(cleanPrev, inner)
+                editor.putString(SettingsActivity.KEY_LEARNED_BIGRAMS, obj.toString())
+            } catch (_: Throwable) {
+            }
+        }
+        editor.apply()
     }
 
     private fun saveCustomWord(word: String) {
@@ -294,7 +372,7 @@ class T9ImeService : InputMethodService() {
         existing.add(clean)
         prefs.edit().putStringSet(SettingsActivity.KEY_CUSTOM_WORDS, existing).apply()
         t9Engine.insertWord(clean, 10000)
-        recordWordUsage(clean)
+        recordWordUsage(clean, getPreviousWordBeforeCursor(skipCurrentWord = true))
     }
 
     private fun loadAndApplySettings() {
@@ -396,7 +474,11 @@ class T9ImeService : InputMethodService() {
 
         val palette = currentPalette()
 
-        rootView.background = makeTopRoundedDrawable(palette.trayHex, 16f)
+        trayContainer.background = makeRoundedDrawable(palette.trayHex, 16f).apply {
+            if (themeId == "amoled") {
+                setStroke(2, Color.parseColor("#27272A"))
+            }
+        }
         stripBar.background = makeTopRoundedDrawable(palette.stripHex, 16f)
         ImageViewCompat.setImageTintList(
             clipboardButton,
@@ -457,7 +539,7 @@ class T9ImeService : InputMethodService() {
         enterButton.layoutParams = (enterButton.layoutParams as GridLayout.LayoutParams).apply {
             height = currentKeyHeightPx
         }
-        enterButton.background = makeRoundedDrawable(palette.enterHex, 28f)
+        enterButton.background = makeRoundedDrawable(palette.enterHex, 16f)
         ImageViewCompat.setImageTintList(
             enterButton,
             ColorStateList.valueOf(Color.parseColor(palette.enterTextHex))
@@ -519,11 +601,11 @@ class T9ImeService : InputMethodService() {
     }
 
     private fun showKeyPopup(anchor: View, label: String) {
-        if (!showKeyPopups || label.isEmpty()) return
+        if (!showKeyPopups || label.isEmpty() || !::popupOverlayLayer.isInitialized) return
         mainHandler.removeCallbacks(dismissPopupRunnable)
 
         val isLightKeyboard = themeId == "material_light"
-        // Opposite-theme high-contrast bold popup bubble
+        // Opposite-theme high-contrast bold popup bubble floating freely over the keyboard frame
         val popupBgHex = if (isLightKeyboard) "#181A1E" else "#FFFFFF"
         val popupTextHex = if (isLightKeyboard) "#FFFFFF" else "#111318"
         val popupBorderHex = if (isLightKeyboard) "#334155" else "#CBD5E1"
@@ -534,6 +616,14 @@ class T9ImeService : InputMethodService() {
             typeface = Typeface.DEFAULT_BOLD
             includeFontPadding = false
             setPadding(32, 16, 32, 16)
+            elevation = 18f
+            popupOverlayLayer.addView(
+                this,
+                FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                )
+            )
             keyPopupView = this
         }
         tv.text = label
@@ -542,30 +632,25 @@ class T9ImeService : InputMethodService() {
         tv.background = makeRoundedDrawable(popupBgHex, 16f).apply {
             setStroke(2, Color.parseColor(popupBorderHex))
         }
-        val pw = keyPopupWindow ?: PopupWindow(
-            tv,
-            android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
-            android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
-            false
-        ).apply {
-            isTouchable = false
-            isClippingEnabled = false
-            elevation = 16f
-            keyPopupWindow = this
-        }
         tv.measure(
             View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
             View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
         )
-        val loc = IntArray(2)
-        anchor.getLocationInWindow(loc)
-        val x = loc[0] + (anchor.width - tv.measuredWidth) / 2
-        val y = loc[1] - tv.measuredHeight - 10
-        if (pw.isShowing) {
-            pw.update(x, y, -1, -1)
-        } else {
-            pw.showAtLocation(rootView, Gravity.NO_GRAVITY, x, y)
+        val overlayLoc = IntArray(2)
+        val anchorLoc = IntArray(2)
+        popupOverlayLayer.getLocationInWindow(overlayLoc)
+        anchor.getLocationInWindow(anchorLoc)
+        val relX = anchorLoc[0] - overlayLoc[0]
+        val relY = anchorLoc[1] - overlayLoc[1]
+        val maxX = (popupOverlayLayer.width - tv.measuredWidth - 6).coerceAtLeast(6)
+        val x = (relX + (anchor.width - tv.measuredWidth) / 2).coerceIn(6, maxX)
+        val y = (relY - tv.measuredHeight - 8).coerceAtLeast(2)
+        tv.layoutParams = (tv.layoutParams as FrameLayout.LayoutParams).apply {
+            leftMargin = x
+            topMargin = y
         }
+        tv.visibility = View.VISIBLE
+        tv.bringToFront()
     }
 
     private fun scheduleDismissKeyPopup() {
@@ -575,10 +660,7 @@ class T9ImeService : InputMethodService() {
 
     private fun dismissKeyPopupImmediate() {
         mainHandler.removeCallbacks(dismissPopupRunnable)
-        try {
-            keyPopupWindow?.dismiss()
-        } catch (_: Throwable) {
-        }
+        keyPopupView?.visibility = View.GONE
     }
 
     private fun attachPopupTouch(view: View, labelProvider: () -> String) {
@@ -630,22 +712,7 @@ class T9ImeService : InputMethodService() {
         // Clipboard history toggle in strip bar
         clipboardButton.setOnClickListener {
             performFeedback(SoundKind.ACTION)
-            commitActiveWord()
-            commitMultiTapChar()
-            symbolsOpen = false
-            clipboardOpen = !clipboardOpen
-            if (clipboardOpen) {
-                captureCurrentSystemClip()
-                renderClipboardHistory()
-            }
-            updatePanelVisibility()
-            val palette = currentPalette()
-            ImageViewCompat.setImageTintList(
-                clipboardButton,
-                ColorStateList.valueOf(
-                    Color.parseColor(if (clipboardOpen) palette.enterHex else palette.subTextHex)
-                )
-            )
+            openClipboardPanel(toggle = true)
         }
 
         // Dedicated T9 ON/OFF toggle next to Settings icon
@@ -695,7 +762,6 @@ class T9ImeService : InputMethodService() {
             true
         }
 
-        val hashButton = rootView.findViewById<View>(R.id.key_hash)
         attachPopupTouch(hashButton) { if (inputMode == InputMode.T9) "Next" else "#" }
         hashButton.setOnClickListener {
             performFeedback(SoundKind.ACTION, keyChar = '#')
@@ -708,10 +774,11 @@ class T9ImeService : InputMethodService() {
                 currentInputConnection?.commitText("#", 1)
             }
         }
+        // Hold # to access Clipboard history directly
         hashButton.setOnLongClickListener {
             performFeedback(SoundKind.ACTION, strong = true, keyChar = '#')
-            commitActiveWord()
-            currentInputConnection?.commitText("#", 1)
+            dismissKeyPopupImmediate()
+            openClipboardPanel(toggle = false)
             true
         }
 
@@ -770,7 +837,9 @@ class T9ImeService : InputMethodService() {
                 maybeAutoCorrectAbcWord()
                 if (wasAbc) {
                     val alpha = getAlphaWordBeforeCursor()
-                    if (alpha.length >= 2) recordWordUsage(alpha)
+                    if (alpha.length >= 2) {
+                        recordWordUsage(alpha, getPreviousWordBeforeCursor(skipCurrentWord = true))
+                    }
                 }
             }
             val ic = currentInputConnection ?: return@setOnClickListener
@@ -885,6 +954,18 @@ class T9ImeService : InputMethodService() {
                 mainHandler.post { renderClipboardHistory() }
             }
         }
+    }
+
+    private fun openClipboardPanel(toggle: Boolean = false) {
+        commitActiveWord()
+        commitMultiTapChar()
+        symbolsOpen = false
+        clipboardOpen = if (toggle) !clipboardOpen else true
+        if (clipboardOpen) {
+            captureCurrentSystemClip()
+            renderClipboardHistory()
+        }
+        updatePanelVisibility()
     }
 
     private fun renderClipboardHistory() {
@@ -1104,7 +1185,8 @@ class T9ImeService : InputMethodService() {
 
         if (inputMode == InputMode.T9) {
             composingDigits.append(digit)
-            candidates = t9Engine.predict(composingDigits.toString())
+            val prevW = getPreviousWordBeforeCursor(skipCurrentWord = true)
+            candidates = t9Engine.predict(composingDigits.toString(), prevWord = prevW)
             candidateIndex = 0
             updateComposingWord()
             renderCandidates()
@@ -1153,7 +1235,8 @@ class T9ImeService : InputMethodService() {
             if (isSpellingToDict) {
                 val spelled = getAlphaWordBeforeCursor()
                 if (spelled.length >= 2) {
-                    if (!t9Engine.hasWord(spelled)) saveCustomWord(spelled) else recordWordUsage(spelled)
+                    if (!t9Engine.hasWord(spelled)) saveCustomWord(spelled)
+                    else recordWordUsage(spelled, getPreviousWordBeforeCursor(skipCurrentWord = true))
                 }
                 isSpellingToDict = false
                 t9Enabled = true
@@ -1167,7 +1250,9 @@ class T9ImeService : InputMethodService() {
             } else {
                 maybeAutoCorrectAbcWord()
                 val alpha = getAlphaWordBeforeCursor()
-                if (alpha.length >= 2) recordWordUsage(alpha)
+                if (alpha.length >= 2) {
+                    recordWordUsage(alpha, getPreviousWordBeforeCursor(skipCurrentWord = true))
+                }
             }
         }
         commitActiveWord()
@@ -1189,10 +1274,11 @@ class T9ImeService : InputMethodService() {
     private fun maybeAutoCorrectAbcWord() {
         if (inputMode != InputMode.ABC || !autoCorrectWhenT9Off) return
         val ic = currentInputConnection ?: return
-        val before = ic.getTextBeforeCursor(32, 0)?.toString() ?: return
+        val before = ic.getTextBeforeCursor(48, 0)?.toString() ?: return
         val match = Regex("(^|[\\s\\n])([a-zA-Z]{2,})$").find(before) ?: return
         val rawWord = match.groupValues[2]
-        val corrected = t9Engine.autoCorrect(rawWord) ?: return
+        val prevW = getPreviousWordBeforeCursor(skipCurrentWord = true)
+        val corrected = t9Engine.autoCorrect(rawWord, prevW) ?: return
         if (corrected != rawWord) {
             ic.deleteSurroundingText(rawWord.length, 0)
             ic.commitText(corrected, 1)
@@ -1208,7 +1294,8 @@ class T9ImeService : InputMethodService() {
                 candidates = emptyList()
                 renderCandidates()
             } else {
-                candidates = t9Engine.predict(composingDigits.toString())
+                val prevW = getPreviousWordBeforeCursor(skipCurrentWord = true)
+                candidates = t9Engine.predict(composingDigits.toString(), prevWord = prevW)
                 candidateIndex = 0
                 updateComposingWord()
                 renderCandidates()
@@ -1235,7 +1322,7 @@ class T9ImeService : InputMethodService() {
                 refreshModeUI()
             }
         }
-        if (inputMode == InputMode.ABC) renderCandidates()
+        renderCandidates()
     }
 
     private fun updateComposingWord() {
@@ -1248,7 +1335,7 @@ class T9ImeService : InputMethodService() {
         if (composingDigits.isEmpty()) return
         val chosen = candidates.getOrNull(candidateIndex)?.word
         if (chosen != null && chosen.all { it in 'a'..'z' } && chosen.length >= 2) {
-            recordWordUsage(chosen)
+            recordWordUsage(chosen, getPreviousWordBeforeCursor(skipCurrentWord = true))
         }
         currentInputConnection?.finishComposingText()
         resetComposition()
@@ -1332,7 +1419,8 @@ class T9ImeService : InputMethodService() {
             return applyCase(letters[nextIdx].toString())
         }
         val nextDigits = composingDigits.toString() + digit
-        val topWord = t9Engine.predict(nextDigits, 1).firstOrNull()?.word
+        val prevW = getPreviousWordBeforeCursor(skipCurrentWord = true)
+        val topWord = t9Engine.predict(nextDigits, 1, prevWord = prevW).firstOrNull()?.word
         val ch = topWord?.getOrNull(composingDigits.length) ?: letters.firstOrNull() ?: digit
         return if (composingDigits.isEmpty()) {
             applyCase(ch.toString())
@@ -1361,7 +1449,7 @@ class T9ImeService : InputMethodService() {
                     isAllCaps = false
                     setTextColor(if (idx == candidateIndex) activeTextColor else normalColor)
                     if (idx == candidateIndex) {
-                        background = makeRoundedDrawable(activeBgHex, 10f)
+                        background = makeRoundedDrawable(activeBgHex, 12f)
                     }
                     setOnClickListener {
                         performFeedback(SoundKind.SPACE, keyChar = '0')
@@ -1372,6 +1460,7 @@ class T9ImeService : InputMethodService() {
                             currentInputConnection?.commitText(" ", 1)
                         }
                         updateAutoCapitalization()
+                        renderCandidates()
                     }
                 }
                 candidateContainer.addView(tv)
@@ -1384,7 +1473,7 @@ class T9ImeService : InputMethodService() {
                 gravity = Gravity.CENTER
                 setPadding(24, 10, 24, 10)
                 setTextColor(activeTextColor)
-                background = makeRoundedDrawable(palette.secondaryHex, 10f)
+                background = makeRoundedDrawable(palette.secondaryHex, 12f)
                 setOnClickListener {
                     performFeedback(SoundKind.ACTION)
                     currentInputConnection?.setComposingText("", 1)
@@ -1401,6 +1490,43 @@ class T9ImeService : InputMethodService() {
             return
         }
 
+        // Gboard / Swype zero-digit Next-Word Prediction strip in T9 mode
+        if (inputMode == InputMode.T9 && composingDigits.isEmpty()) {
+            val prevW = getPreviousWordBeforeCursor()
+            if (prevW.isNotEmpty()) {
+                val nextWords = t9Engine.predictNextWords(prevW, limit = 5)
+                nextWords.forEach { nextW ->
+                    val chip = TextView(this).apply {
+                        text = applyCase(nextW)
+                        textSize = 14f
+                        gravity = Gravity.CENTER
+                        setPadding(24, 10, 24, 10)
+                        isAllCaps = false
+                        setTextColor(normalColor)
+                        background = makeRoundedDrawable(palette.secondaryHex, 12f)
+                        layoutParams = LinearLayout.LayoutParams(
+                            LinearLayout.LayoutParams.WRAP_CONTENT,
+                            LinearLayout.LayoutParams.WRAP_CONTENT
+                        ).apply { setMargins(0, 0, 8, 0) }
+                        setOnClickListener {
+                            performFeedback(SoundKind.SPACE, keyChar = '0')
+                            recordWordUsage(nextW, prevW)
+                            val committed = applyCase(nextW) + if (autoSpacing) " " else ""
+                            currentInputConnection?.commitText(committed, 1)
+                            if (caseMode == CaseMode.TITLE) {
+                                caseMode = CaseMode.LOWER
+                                refreshModeUI()
+                            }
+                            updateAutoCapitalization()
+                            renderCandidates()
+                        }
+                    }
+                    candidateContainer.addView(chip)
+                }
+            }
+            return
+        }
+
         if (inputMode == InputMode.ABC) {
             val word = getAlphaWordBeforeCursor()
             if (word.length >= 2 && !t9Engine.hasWord(word)) {
@@ -1410,7 +1536,7 @@ class T9ImeService : InputMethodService() {
                     gravity = Gravity.CENTER
                     setPadding(26, 10, 26, 10)
                     setTextColor(activeTextColor)
-                    background = makeRoundedDrawable(activeBgHex, 10f)
+                    background = makeRoundedDrawable(activeBgHex, 12f)
                     setOnClickListener {
                         performFeedback(SoundKind.SPACE, keyChar = '0')
                         commitMultiTapChar()
@@ -1463,7 +1589,7 @@ class T9ImeService : InputMethodService() {
         val t9IsActive = t9Enabled && inputMode != InputMode.NUM
         t9ToggleButton.background = makeRoundedDrawable(
             if (t9IsActive) palette.enterHex else if (t9Enabled) palette.actionHex else palette.secondaryHex,
-            8f
+            10f
         )
         t9ToggleButton.setTextColor(
             Color.parseColor(
@@ -1496,12 +1622,16 @@ class T9ImeService : InputMethodService() {
             CaseMode.UPPER -> "ABC"
         }
 
+        if (::hashButton.isInitialized) {
+            hashButton.text = if (inputMode == InputMode.T9) "# ↻\nnext·clip" else "#\nclip"
+        }
+
         if (inputMode == InputMode.NUM) {
             shiftButton.text = "*"
             shiftButton.background = makeRoundedDrawable(palette.secondaryHex, 16f)
             shiftButton.setTextColor(Color.parseColor(palette.keyTextHex))
             caseBadge.text = "123"
-            caseBadge.background = makeRoundedDrawable(palette.actionHex, 8f)
+            caseBadge.background = makeRoundedDrawable(palette.actionHex, 10f)
             caseBadge.setTextColor(Color.parseColor(palette.actionTextHex))
         } else {
             shiftButton.text = when (caseMode) {
@@ -1513,19 +1643,19 @@ class T9ImeService : InputMethodService() {
                 CaseMode.UPPER -> {
                     shiftButton.background = makeRoundedDrawable(palette.enterHex, 16f)
                     shiftButton.setTextColor(Color.parseColor(palette.enterTextHex))
-                    caseBadge.background = makeRoundedDrawable(palette.enterHex, 8f)
+                    caseBadge.background = makeRoundedDrawable(palette.enterHex, 10f)
                     caseBadge.setTextColor(Color.parseColor(palette.enterTextHex))
                 }
                 CaseMode.TITLE -> {
                     shiftButton.background = makeRoundedDrawable(palette.shiftActiveBg, 16f)
                     shiftButton.setTextColor(Color.parseColor(palette.shiftActiveText))
-                    caseBadge.background = makeRoundedDrawable(palette.shiftActiveBg, 8f)
+                    caseBadge.background = makeRoundedDrawable(palette.shiftActiveBg, 10f)
                     caseBadge.setTextColor(Color.parseColor(palette.shiftActiveText))
                 }
                 CaseMode.LOWER -> {
                     shiftButton.background = makeRoundedDrawable(palette.secondaryHex, 16f)
                     shiftButton.setTextColor(Color.parseColor(palette.keyTextHex))
-                    caseBadge.background = makeRoundedDrawable(palette.secondaryHex, 8f)
+                    caseBadge.background = makeRoundedDrawable(palette.secondaryHex, 10f)
                     caseBadge.setTextColor(Color.parseColor(palette.keyTextHex))
                 }
             }

@@ -1,262 +1,312 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/ime_root_frame"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:background="@color/md_theme_surfaceContainer"
-    android:orientation="vertical"
-    android:paddingHorizontal="6dp"
-    android:paddingTop="4dp"
-    android:paddingBottom="10dp">
+    android:background="@android:color/transparent"
+    android:clipChildren="false"
+    android:clipToPadding="false">
 
-    <!-- Gboard Suggestion Strip + Case Badge + Flat Settings Icon -->
-    <LinearLayout
-        android:id="@+id/strip_bar"
-        android:layout_width="match_parent"
-        android:layout_height="44dp"
-        android:gravity="center_vertical"
-        android:paddingHorizontal="4dp"
-        android:orientation="horizontal">
-
-        <TextView
-            android:id="@+id/case_badge"
-            android:layout_width="wrap_content"
-            android:layout_height="28dp"
-            android:gravity="center"
-            android:includeFontPadding="false"
-            android:paddingHorizontal="10dp"
-            android:text="T9 · Abc"
-            android:textSize="12sp"
-            android:textStyle="bold" />
-
-        <HorizontalScrollView
-            android:id="@+id/candidate_scroll"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:scrollbars="none">
-
-            <LinearLayout
-                android:id="@+id/candidate_container"
-                android:layout_width="wrap_content"
-                android:layout_height="match_parent"
-                android:gravity="center_vertical"
-                android:orientation="horizontal"
-                android:paddingHorizontal="6dp" />
-        </HorizontalScrollView>
-
-        <androidx.appcompat.widget.AppCompatImageButton
-            android:id="@+id/btn_clipboard"
-            style="@style/NumpadStripImageButton"
-            android:contentDescription="Clipboard History"
-            android:src="@drawable/ic_clipboard" />
-
-        <androidx.appcompat.widget.AppCompatButton
-            android:id="@+id/btn_toggle_t9"
-            android:layout_width="wrap_content"
-            android:layout_height="26dp"
-            android:layout_marginEnd="4dp"
-            android:gravity="center"
-            android:includeFontPadding="false"
-            android:minWidth="0dp"
-            android:minHeight="0dp"
-            android:paddingHorizontal="9dp"
-            android:paddingVertical="0dp"
-            android:text="T9"
-            android:textAllCaps="false"
-            android:textSize="11sp"
-            android:textStyle="bold" />
-
-        <androidx.appcompat.widget.AppCompatImageButton
-            android:id="@+id/btn_ime_settings"
-            style="@style/NumpadStripImageButton"
-            android:contentDescription="IME Settings"
-            android:src="@drawable/ic_settings" />
-    </LinearLayout>
-
-    <!-- 4-Column Gboard Numpad Grid (Cols 1-3 = 12-key T9, Col 4 = Thumb Rail) -->
-    <GridLayout
-        android:id="@+id/numpad_grid"
+    <FrameLayout
+        android:id="@+id/ime_tray_wrapper"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:columnCount="4"
-        android:rowCount="4"
-        android:useDefaultMargins="false">
+        android:layout_marginTop="58dp"
+        android:background="@android:color/transparent"
+        android:clipChildren="false"
+        android:clipToPadding="false">
 
-        <!-- ROW 1: 1 | 2 | 3 | Switch (123 / ABC) -->
-        <LinearLayout android:id="@+id/key_1" style="@style/NumpadKey">
-            <TextView style="@style/NumpadDigit" android:text="1" />
-            <TextView style="@style/NumpadLetters" android:text=".,?!" />
-        </LinearLayout>
-
-        <LinearLayout android:id="@+id/key_2" style="@style/NumpadKey">
-            <TextView style="@style/NumpadDigit" android:text="2" />
-            <TextView style="@style/NumpadLetters" android:text="Abc" />
-        </LinearLayout>
-
-        <LinearLayout android:id="@+id/key_3" style="@style/NumpadKey">
-            <TextView style="@style/NumpadDigit" android:text="3" />
-            <TextView style="@style/NumpadLetters" android:text="Def" />
-        </LinearLayout>
-
-        <androidx.appcompat.widget.AppCompatButton android:id="@+id/key_mode" style="@style/NumpadActionKey" android:text="123" />
-
-        <!-- ROW 2: 4 | 5 | 6 | Symbols -->
-        <LinearLayout android:id="@+id/key_4" style="@style/NumpadKey">
-            <TextView style="@style/NumpadDigit" android:text="4" />
-            <TextView style="@style/NumpadLetters" android:text="GHI" />
-        </LinearLayout>
-
-        <LinearLayout android:id="@+id/key_5" style="@style/NumpadKey">
-            <TextView style="@style/NumpadDigit" android:text="5" />
-            <TextView style="@style/NumpadLetters" android:text="JKL" />
-        </LinearLayout>
-
-        <LinearLayout android:id="@+id/key_6" style="@style/NumpadKey">
-            <TextView style="@style/NumpadDigit" android:text="6" />
-            <TextView style="@style/NumpadLetters" android:text="MNO" />
-        </LinearLayout>
-
-        <androidx.appcompat.widget.AppCompatButton android:id="@+id/key_sym" style="@style/NumpadActionKey" android:text="@#&amp;" />
-
-        <!-- ROW 3: 7 | 8 | 9 | Backspace -->
-        <LinearLayout android:id="@+id/key_7" style="@style/NumpadKey">
-            <TextView style="@style/NumpadDigit" android:text="7" />
-            <TextView style="@style/NumpadLetters" android:text="PQRS" />
-        </LinearLayout>
-
-        <LinearLayout android:id="@+id/key_8" style="@style/NumpadKey">
-            <TextView style="@style/NumpadDigit" android:text="8" />
-            <TextView style="@style/NumpadLetters" android:text="TUV" />
-        </LinearLayout>
-
-        <LinearLayout android:id="@+id/key_9" style="@style/NumpadKey">
-            <TextView style="@style/NumpadDigit" android:text="9" />
-            <TextView style="@style/NumpadLetters" android:text="WXYZ" />
-        </LinearLayout>
-
-        <androidx.appcompat.widget.AppCompatImageButton
-            android:id="@+id/key_backspace"
-            style="@style/NumpadActionImageKey"
-            android:contentDescription="Backspace"
-            android:src="@drawable/ic_backspace" />
-
-        <!-- ROW 4: * | 0 | # | Enter -->
-        <androidx.appcompat.widget.AppCompatButton android:id="@+id/key_star" style="@style/NumpadSecondaryKey" android:text="* ⇧" />
-
-        <LinearLayout android:id="@+id/key_0" style="@style/NumpadKey">
-            <TextView style="@style/NumpadDigit" android:text="0" />
-            <TextView style="@style/NumpadLetters" android:text="␣" />
-        </LinearLayout>
-
-        <androidx.appcompat.widget.AppCompatButton android:id="@+id/key_hash" style="@style/NumpadSecondaryKey" android:text="# ↻" />
-
-        <androidx.appcompat.widget.AppCompatImageButton
-            android:id="@+id/key_enter"
-            style="@style/NumpadEnterImageKey"
-            android:contentDescription="Enter"
-            android:src="@drawable/ic_enter_return" />
-
-    </GridLayout>
-
-    <!-- 3-Page Symbols Overlay Panel (4 rows matching numpad_grid height) -->
-    <LinearLayout
-        android:id="@+id/symbols_panel"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:visibility="gone">
-
-        <GridLayout
-            android:id="@+id/symbols_grid"
+        <!-- Black navigation bar backdrop behind bottom 16dp rounded corners so nav color rises smoothly onto bottom edges -->
+        <View
+            android:id="@+id/nav_corner_backdrop"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:columnCount="6"
-            android:useDefaultMargins="false" />
+            android:layout_height="24dp"
+            android:layout_gravity="bottom"
+            android:background="#000000" />
 
         <LinearLayout
-            android:id="@+id/symbols_footer"
+            android:id="@+id/keyboard_tray"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:background="@color/md_theme_surfaceContainer"
+            android:clipChildren="false"
+            android:clipToPadding="false"
+            android:orientation="vertical"
+            android:paddingHorizontal="6dp"
+            android:paddingTop="4dp"
+            android:paddingBottom="10dp">
+
+        <!-- Gboard Suggestion Strip + Case Badge + Flat Settings Icon -->
+        <LinearLayout
+            android:id="@+id/strip_bar"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:clipChildren="false"
+            android:clipToPadding="false"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="4dp"
             android:orientation="horizontal">
 
-            <androidx.appcompat.widget.AppCompatButton
-                android:id="@+id/btn_sym_back"
-                style="@style/NumpadActionKey"
-                android:layout_width="0dp"
-                android:layout_height="54dp"
-                android:layout_weight="1"
-                android:text="Back" />
+            <TextView
+                android:id="@+id/case_badge"
+                android:layout_width="wrap_content"
+                android:layout_height="28dp"
+                android:gravity="center"
+                android:includeFontPadding="false"
+                android:paddingHorizontal="10dp"
+                android:text="T9 · Abc"
+                android:textSize="12sp"
+                android:textStyle="bold" />
 
-            <androidx.appcompat.widget.AppCompatButton
-                android:id="@+id/btn_sym_page"
-                style="@style/NumpadSecondaryKey"
+            <HorizontalScrollView
+                android:id="@+id/candidate_scroll"
                 android:layout_width="0dp"
-                android:layout_height="54dp"
+                android:layout_height="match_parent"
                 android:layout_weight="1"
-                android:text="Page 1/3" />
+                android:scrollbars="none">
 
-            <androidx.appcompat.widget.AppCompatButton
-                android:id="@+id/btn_sym_space"
-                style="@style/NumpadSecondaryKey"
-                android:layout_width="0dp"
-                android:layout_height="54dp"
-                android:layout_weight="1"
-                android:text="Space" />
+                <LinearLayout
+                    android:id="@+id/candidate_container"
+                    android:layout_width="wrap_content"
+                    android:layout_height="match_parent"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingHorizontal="6dp" />
+            </HorizontalScrollView>
 
             <androidx.appcompat.widget.AppCompatImageButton
-                android:id="@+id/btn_sym_backspace"
-                style="@style/NumpadActionImageKey"
-                android:layout_width="0dp"
-                android:layout_height="54dp"
-                android:layout_weight="1"
-                android:contentDescription="Backspace"
-                android:src="@drawable/ic_backspace" />
+                android:id="@+id/btn_clipboard"
+                style="@style/NumpadStripImageButton"
+                android:contentDescription="Clipboard History"
+                android:src="@drawable/ic_clipboard" />
+
+            <androidx.appcompat.widget.AppCompatButton
+                android:id="@+id/btn_toggle_t9"
+                android:layout_width="wrap_content"
+                android:layout_height="26dp"
+                android:layout_marginEnd="4dp"
+                android:gravity="center"
+                android:includeFontPadding="false"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:paddingHorizontal="9dp"
+                android:paddingVertical="0dp"
+                android:text="T9"
+                android:textAllCaps="false"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+
+            <androidx.appcompat.widget.AppCompatImageButton
+                android:id="@+id/btn_ime_settings"
+                style="@style/NumpadStripImageButton"
+                android:contentDescription="IME Settings"
+                android:src="@drawable/ic_settings" />
         </LinearLayout>
-    </LinearLayout>
 
-    <!-- Back-to-Back Clipboard History Panel (height locked to numpad_grid) -->
-    <LinearLayout
-        android:id="@+id/clipboard_panel"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:visibility="gone">
-
-        <ScrollView
-            android:id="@+id/clipboard_scroll"
-            android:layout_width="match_parent"
-            android:layout_height="180dp"
-            android:paddingHorizontal="4dp"
-            android:paddingTop="4dp"
-            android:scrollbars="vertical">
-
-            <LinearLayout
-                android:id="@+id/clipboard_list"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical" />
-        </ScrollView>
-
-        <LinearLayout
+        <!-- 4-Column Gboard Numpad Grid (Cols 1-3 = 12-key T9, Col 4 = Thumb Rail) -->
+        <GridLayout
+            android:id="@+id/numpad_grid"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal">
+            android:alignmentMode="alignBounds"
+            android:clipChildren="false"
+            android:clipToPadding="false"
+            android:columnCount="4"
+            android:rowCount="4"
+            android:useDefaultMargins="false">
 
-            <androidx.appcompat.widget.AppCompatButton
-                android:id="@+id/btn_clip_back"
-                style="@style/NumpadActionKey"
-                android:layout_width="0dp"
-                android:layout_height="54dp"
-                android:layout_weight="1"
-                android:text="Back" />
+            <!-- ROW 1: 1 | 2 | 3 | Switch (123 / ABC) -->
+            <LinearLayout android:id="@+id/key_1" style="@style/NumpadKey">
+                <TextView style="@style/NumpadDigit" android:text="1" />
+                <TextView style="@style/NumpadLetters" android:text=".,?!" />
+            </LinearLayout>
 
-            <androidx.appcompat.widget.AppCompatButton
-                android:id="@+id/btn_clip_clear"
-                style="@style/NumpadSecondaryKey"
-                android:layout_width="0dp"
-                android:layout_height="54dp"
-                android:layout_weight="1"
-                android:text="Clear All" />
+            <LinearLayout android:id="@+id/key_2" style="@style/NumpadKey">
+                <TextView style="@style/NumpadDigit" android:text="2" />
+                <TextView style="@style/NumpadLetters" android:text="Abc" />
+            </LinearLayout>
+
+            <LinearLayout android:id="@+id/key_3" style="@style/NumpadKey">
+                <TextView style="@style/NumpadDigit" android:text="3" />
+                <TextView style="@style/NumpadLetters" android:text="Def" />
+            </LinearLayout>
+
+            <androidx.appcompat.widget.AppCompatButton android:id="@+id/key_mode" style="@style/NumpadActionKey" android:text="123" />
+
+            <!-- ROW 2: 4 | 5 | 6 | Symbols -->
+            <LinearLayout android:id="@+id/key_4" style="@style/NumpadKey">
+                <TextView style="@style/NumpadDigit" android:text="4" />
+                <TextView style="@style/NumpadLetters" android:text="GHI" />
+            </LinearLayout>
+
+            <LinearLayout android:id="@+id/key_5" style="@style/NumpadKey">
+                <TextView style="@style/NumpadDigit" android:text="5" />
+                <TextView style="@style/NumpadLetters" android:text="JKL" />
+            </LinearLayout>
+
+            <LinearLayout android:id="@+id/key_6" style="@style/NumpadKey">
+                <TextView style="@style/NumpadDigit" android:text="6" />
+                <TextView style="@style/NumpadLetters" android:text="MNO" />
+            </LinearLayout>
+
+            <androidx.appcompat.widget.AppCompatButton android:id="@+id/key_sym" style="@style/NumpadActionKey" android:text="@#&amp;" />
+
+            <!-- ROW 3: 7 | 8 | 9 | Backspace -->
+            <LinearLayout android:id="@+id/key_7" style="@style/NumpadKey">
+                <TextView style="@style/NumpadDigit" android:text="7" />
+                <TextView style="@style/NumpadLetters" android:text="PQRS" />
+            </LinearLayout>
+
+            <LinearLayout android:id="@+id/key_8" style="@style/NumpadKey">
+                <TextView style="@style/NumpadDigit" android:text="8" />
+                <TextView style="@style/NumpadLetters" android:text="TUV" />
+            </LinearLayout>
+
+            <LinearLayout android:id="@+id/key_9" style="@style/NumpadKey">
+                <TextView style="@style/NumpadDigit" android:text="9" />
+                <TextView style="@style/NumpadLetters" android:text="WXYZ" />
+            </LinearLayout>
+
+            <androidx.appcompat.widget.AppCompatImageButton
+                android:id="@+id/key_backspace"
+                style="@style/NumpadActionImageKey"
+                android:contentDescription="Backspace"
+                android:src="@drawable/ic_backspace" />
+
+            <!-- ROW 4: * | 0 | # (Hold for Clipboard) | Enter -->
+            <androidx.appcompat.widget.AppCompatButton android:id="@+id/key_star" style="@style/NumpadSecondaryKey" android:text="* ⇧" />
+
+            <LinearLayout android:id="@+id/key_0" style="@style/NumpadKey">
+                <TextView style="@style/NumpadDigit" android:text="0" />
+                <TextView style="@style/NumpadLetters" android:text="␣" />
+            </LinearLayout>
+
+            <androidx.appcompat.widget.AppCompatButton android:id="@+id/key_hash" style="@style/NumpadSecondaryKey" android:text="# ↻&#10;next·clip" />
+
+            <androidx.appcompat.widget.AppCompatImageButton
+                android:id="@+id/key_enter"
+                style="@style/NumpadEnterImageKey"
+                android:contentDescription="Enter"
+                android:src="@drawable/ic_enter_return" />
+
+        </GridLayout>
+
+        <!-- 3-Page Symbols Overlay Panel (4 rows matching numpad_grid height) -->
+        <LinearLayout
+            android:id="@+id/symbols_panel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:clipChildren="false"
+            android:clipToPadding="false"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <GridLayout
+                android:id="@+id/symbols_grid"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:alignmentMode="alignBounds"
+                android:clipChildren="false"
+                android:clipToPadding="false"
+                android:columnCount="6"
+                android:useDefaultMargins="false" />
+
+            <LinearLayout
+                android:id="@+id/symbols_footer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <androidx.appcompat.widget.AppCompatButton
+                    android:id="@+id/btn_sym_back"
+                    style="@style/NumpadActionKey"
+                    android:layout_width="0dp"
+                    android:layout_height="54dp"
+                    android:layout_weight="1"
+                    android:text="Back" />
+
+                <androidx.appcompat.widget.AppCompatButton
+                    android:id="@+id/btn_sym_page"
+                    style="@style/NumpadSecondaryKey"
+                    android:layout_width="0dp"
+                    android:layout_height="54dp"
+                    android:layout_weight="1"
+                    android:text="Page 1/3" />
+
+                <androidx.appcompat.widget.AppCompatButton
+                    android:id="@+id/btn_sym_space"
+                    style="@style/NumpadSecondaryKey"
+                    android:layout_width="0dp"
+                    android:layout_height="54dp"
+                    android:layout_weight="1"
+                    android:text="Space" />
+
+                <androidx.appcompat.widget.AppCompatImageButton
+                    android:id="@+id/btn_sym_backspace"
+                    style="@style/NumpadActionImageKey"
+                    android:layout_width="0dp"
+                    android:layout_height="54dp"
+                    android:layout_weight="1"
+                    android:contentDescription="Backspace"
+                    android:src="@drawable/ic_backspace" />
+            </LinearLayout>
         </LinearLayout>
-    </LinearLayout>
-</LinearLayout>
+
+        <!-- Back-to-Back Clipboard History Panel (height locked to numpad_grid) -->
+        <LinearLayout
+            android:id="@+id/clipboard_panel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <ScrollView
+                android:id="@+id/clipboard_scroll"
+                android:layout_width="match_parent"
+                android:layout_height="180dp"
+                android:paddingHorizontal="4dp"
+                android:paddingTop="4dp"
+                android:scrollbars="vertical">
+
+                <LinearLayout
+                    android:id="@+id/clipboard_list"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical" />
+            </ScrollView>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <androidx.appcompat.widget.AppCompatButton
+                    android:id="@+id/btn_clip_back"
+                    style="@style/NumpadActionKey"
+                    android:layout_width="0dp"
+                    android:layout_height="54dp"
+                    android:layout_weight="1"
+                    android:text="Back" />
+
+                <androidx.appcompat.widget.AppCompatButton
+                    android:id="@+id/btn_clip_clear"
+                    style="@style/NumpadSecondaryKey"
+                    android:layout_width="0dp"
+                    android:layout_height="54dp"
+                    android:layout_weight="1"
+                    android:text="Clear All" />
+            </LinearLayout>
+        </LinearLayout>
+        </LinearLayout>
+    </FrameLayout>
+
+    <!-- Unclipped Popup Overlay Layer floating freely over the keyboard frame -->
+    <FrameLayout
+        android:id="@+id/popup_overlay_layer"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:clickable="false"
+        android:clipChildren="false"
+        android:clipToPadding="false"
+        android:focusable="false" />
+</FrameLayout>
