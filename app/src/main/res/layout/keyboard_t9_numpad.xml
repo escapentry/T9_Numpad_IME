@@ -32,7 +32,7 @@
                 android:paddingHorizontal="8dp" />
         </HorizontalScrollView>
 
-        <Button
+        <androidx.appcompat.widget.AppCompatButton
             android:id="@+id/btn_ime_settings"
             style="@style/NumpadStripButton"
             android:text="⚙" />
@@ -63,7 +63,7 @@
             <TextView style="@style/NumpadLetters" android:text="DEF" />
         </LinearLayout>
 
-        <Button android:id="@+id/key_mode" style="@style/NumpadActionKey" android:text="T9" />
+        <androidx.appcompat.widget.AppCompatButton android:id="@+id/key_mode" style="@style/NumpadActionKey" android:text="T9" />
 
         <!-- ROW 2: 4 | 5 | 6 | Symbols -->
         <LinearLayout android:id="@+id/key_4" style="@style/NumpadKey">
@@ -81,7 +81,7 @@
             <TextView style="@style/NumpadLetters" android:text="MNO" />
         </LinearLayout>
 
-        <Button android:id="@+id/key_sym" style="@style/NumpadActionKey" android:text="@#&amp;" />
+        <androidx.appcompat.widget.AppCompatButton android:id="@+id/key_sym" style="@style/NumpadActionKey" android:text="@#&amp;" />
 
         <!-- ROW 3: 7 | 8 | 9 | Backspace -->
         <LinearLayout android:id="@+id/key_7" style="@style/NumpadKey">
@@ -99,19 +99,19 @@
             <TextView style="@style/NumpadLetters" android:text="WXYZ" />
         </LinearLayout>
 
-        <Button android:id="@+id/key_backspace" style="@style/NumpadActionKey" android:text="⌫" />
+        <androidx.appcompat.widget.AppCompatButton android:id="@+id/key_backspace" style="@style/NumpadActionKey" android:text="⌫" />
 
         <!-- ROW 4: * | 0 | # | Enter -->
-        <Button android:id="@+id/key_star" style="@style/NumpadSecondaryKey" android:text="* ⇧" />
+        <androidx.appcompat.widget.AppCompatButton android:id="@+id/key_star" style="@style/NumpadSecondaryKey" android:text="* ⇧" />
 
         <LinearLayout android:id="@+id/key_0" style="@style/NumpadKey">
             <TextView style="@style/NumpadDigit" android:text="0" />
             <TextView style="@style/NumpadLetters" android:text="␣ +" />
         </LinearLayout>
 
-        <Button android:id="@+id/key_hash" style="@style/NumpadSecondaryKey" android:text="# ↻" />
+        <androidx.appcompat.widget.AppCompatButton android:id="@+id/key_hash" style="@style/NumpadSecondaryKey" android:text="# ↻" />
 
-        <Button android:id="@+id/key_enter" style="@style/NumpadEnterKey" android:text="↵" />
+        <androidx.appcompat.widget.AppCompatButton android:id="@+id/key_enter" style="@style/NumpadEnterKey" android:text="↵" />
 
     </GridLayout>
 
@@ -135,7 +135,7 @@
             android:layout_marginTop="4dp"
             android:orientation="horizontal">
 
-            <Button
+            <androidx.appcompat.widget.AppCompatButton
                 android:id="@+id/btn_sym_back"
                 style="@style/NumpadActionKey"
                 android:layout_width="0dp"
@@ -143,7 +143,7 @@
                 android:layout_weight="1"
                 android:text="Back" />
 
-            <Button
+            <androidx.appcompat.widget.AppCompatButton
                 android:id="@+id/btn_sym_page"
                 style="@style/NumpadSecondaryKey"
                 android:layout_width="0dp"
@@ -151,7 +151,7 @@
                 android:layout_weight="1"
                 android:text="Page 1/3" />
 
-            <Button
+            <androidx.appcompat.widget.AppCompatButton
                 android:id="@+id/btn_sym_space"
                 style="@style/NumpadSecondaryKey"
                 android:layout_width="0dp"
@@ -159,7 +159,7 @@
                 android:layout_weight="1"
                 android:text="␣" />
 
-            <Button
+            <androidx.appcompat.widget.AppCompatButton
                 android:id="@+id/btn_sym_backspace"
                 style="@style/NumpadActionKey"
                 android:layout_width="0dp"

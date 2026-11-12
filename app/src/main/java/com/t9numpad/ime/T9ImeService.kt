@@ -133,6 +133,18 @@ class T9ImeService : InputMethodService() {
         }
     }
 
+    private data class ThemePalette(
+        val trayHex: String,
+        val keyHex: String,
+        val actionHex: String,
+        val secondaryHex: String,
+        val enterHex: String,
+        val keyTextHex: String,
+        val subTextHex: String,
+        val actionTextHex: String,
+        val enterTextHex: String
+    )
+
     private fun applyThemeAndHeight() {
         val heightDp = when (keyHeightId) {
             "compact" -> 46
@@ -145,16 +157,15 @@ class T9ImeService : InputMethodService() {
             resources.displayMetrics
         ).toInt()
 
-        val (trayHex, keyHex, actionHex, secondaryHex, enterHex, keyTextHex, subTextHex, actionTextHex, enterTextHex) =
-            when (themeId) {
-                "material_dark" -> listOf("#1B1C1F", "#2E3036", "#3A4352", "#25272C", "#A8C7FA", "#E8EAED", "#9AA0A6", "#D3E3FD", "#062E6F")
-                "amoled" -> listOf("#000000", "#141417", "#1D2433", "#101013", "#2563EB", "#F4F4F5", "#A1A1AA", "#BFDBFE", "#FFFFFF")
-                "classic_3310" -> listOf("#8EA47B", "#283320", "#3A482F", "#323F28", "#192113", "#D4E6C3", "#9BB588", "#E1F0D2", "#D4E6C3")
-                else -> listOf("#ECEFF4", "#FFFFFF", "#D3E3FD", "#DFE5EE", "#0B57D0", "#1F1F1F", "#5F6368", "#041E49", "#FFFFFF")
-            }
+        val palette = when (themeId) {
+            "material_dark" -> ThemePalette("#1B1C1F", "#2E3036", "#3A4352", "#25272C", "#A8C7FA", "#E8EAED", "#9AA0A6", "#D3E3FD", "#062E6F")
+            "amoled" -> ThemePalette("#000000", "#141417", "#1D2433", "#101013", "#2563EB", "#F4F4F5", "#A1A1AA", "#BFDBFE", "#FFFFFF")
+            "classic_3310" -> ThemePalette("#8EA47B", "#283320", "#3A482F", "#323F28", "#192113", "#D4E6C3", "#9BB588", "#E1F0D2", "#D4E6C3")
+            else -> ThemePalette("#ECEFF4", "#FFFFFF", "#D3E3FD", "#DFE5EE", "#0B57D0", "#1F1F1F", "#5F6368", "#041E49", "#FFFFFF")
+        }
 
-        rootView.setBackgroundColor(Color.parseColor(trayHex))
-        stripBar.setBackgroundColor(Color.parseColor(trayHex))
+        rootView.setBackgroundColor(Color.parseColor(palette.trayHex))
+        stripBar.setBackgroundColor(Color.parseColor(palette.trayHex))
 
         val digitIds = listOf(
             R.id.key_1, R.id.key_2, R.id.key_3,
@@ -166,10 +177,10 @@ class T9ImeService : InputMethodService() {
             container.layoutParams = (container.layoutParams as GridLayout.LayoutParams).apply {
                 height = heightPx
             }
-            container.background = makeRoundedDrawable(keyHex, 16f)
+            container.background = makeRoundedDrawable(palette.keyHex, 16f)
             if (container.childCount >= 2) {
-                (container.getChildAt(0) as? TextView)?.setTextColor(Color.parseColor(keyTextHex))
-                (container.getChildAt(1) as? TextView)?.setTextColor(Color.parseColor(subTextHex))
+                (container.getChildAt(0) as? TextView)?.setTextColor(Color.parseColor(palette.keyTextHex))
+                (container.getChildAt(1) as? TextView)?.setTextColor(Color.parseColor(palette.subTextHex))
             }
         }
 
@@ -179,8 +190,8 @@ class T9ImeService : InputMethodService() {
             btn.layoutParams = (btn.layoutParams as GridLayout.LayoutParams).apply {
                 height = heightPx
             }
-            btn.background = makeRoundedDrawable(actionHex, 16f)
-            btn.setTextColor(Color.parseColor(actionTextHex))
+            btn.background = makeRoundedDrawable(palette.actionHex, 16f)
+            btn.setTextColor(Color.parseColor(palette.actionTextHex))
         }
 
         val secIds = listOf(R.id.key_star, R.id.key_hash)
@@ -189,16 +200,16 @@ class T9ImeService : InputMethodService() {
             btn.layoutParams = (btn.layoutParams as GridLayout.LayoutParams).apply {
                 height = heightPx
             }
-            btn.background = makeRoundedDrawable(secondaryHex, 16f)
-            btn.setTextColor(Color.parseColor(keyTextHex))
+            btn.background = makeRoundedDrawable(palette.secondaryHex, 16f)
+            btn.setTextColor(Color.parseColor(palette.keyTextHex))
         }
 
         val enterBtn = rootView.findViewById<Button>(R.id.key_enter)
         enterBtn.layoutParams = (enterBtn.layoutParams as GridLayout.LayoutParams).apply {
             height = heightPx
         }
-        enterBtn.background = makeRoundedDrawable(enterHex, 28f)
-        enterBtn.setTextColor(Color.parseColor(enterTextHex))
+        enterBtn.background = makeRoundedDrawable(palette.enterHex, 28f)
+        enterBtn.setTextColor(Color.parseColor(palette.enterTextHex))
 
         renderSymbolPage()
     }
