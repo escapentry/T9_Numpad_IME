@@ -21,6 +21,8 @@ class T9Engine {
     private val root = TrieNode()
     private val orderedWords = ArrayList<String>()
     private val validWordSet = HashSet<String>()
+    private val baseScores = HashMap<String, Int>()
+    private val learnedFreqs = HashMap<String, Int>()
 
     companion object {
         val MULTITAP_MAP = mapOf(
@@ -64,12 +66,37 @@ class T9Engine {
         val total = words.size
         orderedWords.clear()
         validWordSet.clear()
+        baseScores.clear()
         words.forEachIndexed { index, word ->
             if (validWordSet.add(word)) {
                 orderedWords.add(word)
             }
-            insertWord(word, (total - index) + 100)
+            val score = (total - index) + 200
+            baseScores[word] = score
+            insertWord(word, score + (learnedFreqs[word] ?: 0) * 450)
         }
+    }
+
+    fun applyLearnedFrequencies(freqMap: Map<String, Int>) {
+        learnedFreqs.clear()
+        freqMap.forEach { (raw, count) ->
+            val clean = raw.trim().lowercase()
+            if (clean.length >= 2 && count > 0) {
+                learnedFreqs[clean] = count
+                val base = baseScores[clean] ?: 4500
+                insertWord(clean, base + count * 450)
+            }
+        }
+    }
+
+    fun recordWordUsage(rawWord: String): Int {
+        val clean = rawWord.trim().lowercase()
+        if (clean.length < 2) return 0
+        val nextCount = (learnedFreqs[clean] ?: 0) + 1
+        learnedFreqs[clean] = nextCount
+        val base = baseScores[clean] ?: 4500
+        insertWord(clean, base + nextCount * 450)
+        return nextCount
     }
 
     fun hasWord(word: String): Boolean {
@@ -82,6 +109,9 @@ class T9Engine {
         val digits = wordToDigits(clean) ?: return
         if (validWordSet.add(clean)) {
             orderedWords.add(0, clean)
+        }
+        if (!baseScores.containsKey(clean) && score >= 10000) {
+            baseScores[clean] = score
         }
         var node = root
         for (d in digits) {

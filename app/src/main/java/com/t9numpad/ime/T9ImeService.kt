@@ -26,6 +26,7 @@ import android.widget.Button
 import android.widget.GridLayout
 import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
+import android.widget.PopupWindow
 import android.widget.TextView
 import androidx.appcompat.widget.AppCompatButton
 import androidx.appcompat.widget.AppCompatImageButton
@@ -34,6 +35,7 @@ import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import kotlin.math.PI
 import kotlin.math.exp
+import kotlin.math.max
 import kotlin.math.sin
 
 class T9ImeService : InputMethodService() {
@@ -54,6 +56,7 @@ class T9ImeService : InputMethodService() {
     private lateinit var candidateContainer: LinearLayout
     private lateinit var candidateScroll: HorizontalScrollView
     private lateinit var caseBadge: TextView
+    private lateinit var t9ToggleButton: AppCompatButton
     private lateinit var modeButton: AppCompatButton
     private lateinit var symButton: AppCompatButton
     private lateinit var shiftButton: AppCompatButton
@@ -66,10 +69,12 @@ class T9ImeService : InputMethodService() {
     private val audioExecutor = Executors.newSingleThreadScheduledExecutor()
     private lateinit var prefs: SharedPreferences
 
-    private var digitPcm: ByteArray = ByteArray(0)
-    private var actionPcm: ByteArray = ByteArray(0)
-    private var enterPcm: ByteArray = ByteArray(0)
+    private val pcmCache = HashMap<String, ByteArray>()
+    private var keyPopupWindow: PopupWindow? = null
+    private var keyPopupView: TextView? = null
 
+    private var t9Enabled = true
+    private var isNumericMode = false
     private var inputMode = InputMode.T9
     private var caseMode = CaseMode.TITLE
     private var symbolsOpen = false
@@ -108,8 +113,10 @@ class T9ImeService : InputMethodService() {
     private var keyHeightId = "standard"
     private var soundEnabled = true
     private var soundVolume = 75
+    private var soundSetId = "clicks"
     private var hapticEnabled = true
     private var hapticStrength = 65
+    private var showKeyPopups = true
     private var autoCapitalize = true
     private var autoSpacing = true
     private var autoCorrectWhenT9Off = true
@@ -127,13 +134,12 @@ class T9ImeService : InputMethodService() {
         prefs = getSharedPreferences(SettingsActivity.PREFS_NAME, Context.MODE_PRIVATE)
         t9Engine.loadDictionary(assets.open("t9_words.txt"))
         syncCustomWordsFromPrefs()
-        digitPcm = SoundSynth.buildClickPcm(freqHz = 560.0, durationMs = 16)
-        actionPcm = SoundSynth.buildClickPcm(freqHz = 420.0, durationMs = 14)
-        enterPcm = SoundSynth.buildClickPcm(freqHz = 640.0, durationMs = 20)
+        syncLearnedFreqsFromPrefs()
     }
 
     override fun onDestroy() {
         super.onDestroy()
+        dismissKeyPopup()
         audioExecutor.shutdownNow()
     }
 
@@ -151,6 +157,7 @@ class T9ImeService : InputMethodService() {
         candidateContainer = rootView.findViewById(R.id.candidate_container)
         candidateScroll = rootView.findViewById(R.id.candidate_scroll)
         caseBadge = rootView.findViewById(R.id.case_badge)
+        t9ToggleButton = rootView.findViewById(R.id.btn_toggle_t9)
         modeButton = rootView.findViewById(R.id.key_mode)
         symButton = rootView.findViewById(R.id.key_sym)
         shiftButton = rootView.findViewById(R.id.key_star)
@@ -170,24 +177,23 @@ class T9ImeService : InputMethodService() {
         super.onStartInputView(info, restarting)
         loadAndApplySettings()
         syncCustomWordsFromPrefs()
+        syncLearnedFreqsFromPrefs()
         resetComposition()
         isSpellingToDict = false
         symbolsOpen = false
+        dismissKeyPopup()
         updateSymbolsVisibility()
 
-        // Only temporarily force NUM for strict numeric/phone fields;
-        // otherwise restore the user's remembered mode (T9, ABC, or NUM).
+        t9Enabled = prefs.getBoolean(SettingsActivity.KEY_T9_ENABLED, true)
+        isNumericMode = prefs.getBoolean(SettingsActivity.KEY_IS_NUMERIC, false)
+
         val inputType = info?.inputType ?: 0
-        val isNumeric = (inputType and EditorInfo.TYPE_MASK_CLASS) == EditorInfo.TYPE_CLASS_NUMBER ||
+        val isNumericField = (inputType and EditorInfo.TYPE_MASK_CLASS) == EditorInfo.TYPE_CLASS_NUMBER ||
             (inputType and EditorInfo.TYPE_MASK_CLASS) == EditorInfo.TYPE_CLASS_PHONE
-        inputMode = if (isNumeric) {
-            InputMode.NUM
-        } else {
-            when (prefs.getString(SettingsActivity.KEY_INPUT_MODE, InputMode.T9.name)) {
-                InputMode.ABC.name -> InputMode.ABC
-                InputMode.NUM.name -> InputMode.NUM
-                else -> InputMode.T9
-            }
+        inputMode = when {
+            isNumericField || isNumericMode -> InputMode.NUM
+            t9Enabled -> InputMode.T9
+            else -> InputMode.ABC
         }
         caseMode = if (autoCapitalize) CaseMode.TITLE else CaseMode.LOWER
         updateAutoCapitalization()
@@ -205,6 +211,42 @@ class T9ImeService : InputMethodService() {
         }
     }
 
+    private fun syncLearnedFreqsFromPrefs() {
+        val raw = prefs.getString(SettingsActivity.KEY_LEARNED_FREQS, "") ?: ""
+        val map = HashMap<String, Int>()
+        raw.split(",").forEach { entry ->
+            val parts = entry.split(":")
+            if (parts.size == 2) {
+                val w = parts[0].trim().lowercase()
+                val c = parts[1].toIntOrNull() ?: 0
+                if (w.length >= 2 && c > 0) map[w] = c
+            }
+        }
+        t9Engine.applyLearnedFrequencies(map)
+    }
+
+    private fun recordWordUsage(rawWord: String) {
+        val clean = rawWord.lowercase().trim().filter { it in 'a'..'z' }
+        if (clean.length < 2) return
+        val newCount = t9Engine.recordWordUsage(clean)
+        val raw = prefs.getString(SettingsActivity.KEY_LEARNED_FREQS, "") ?: ""
+        val map = LinkedHashMap<String, Int>()
+        raw.split(",").forEach { entry ->
+            val parts = entry.split(":")
+            if (parts.size == 2) {
+                val w = parts[0].trim().lowercase()
+                val c = parts[1].toIntOrNull() ?: 0
+                if (w.length >= 2 && c > 0) map[w] = c
+            }
+        }
+        map[clean] = newCount
+        val serialized = map.entries
+            .sortedByDescending { it.value }
+            .take(300)
+            .joinToString(",") { "${it.key}:${it.value}" }
+        prefs.edit().putString(SettingsActivity.KEY_LEARNED_FREQS, serialized).apply()
+    }
+
     private fun saveCustomWord(word: String) {
         val clean = word.lowercase().trim().filter { it in 'a'..'z' }
         if (clean.length < 2) return
@@ -212,6 +254,7 @@ class T9ImeService : InputMethodService() {
         existing.add(clean)
         prefs.edit().putStringSet(SettingsActivity.KEY_CUSTOM_WORDS, existing).apply()
         t9Engine.insertWord(clean, 10000)
+        recordWordUsage(clean)
     }
 
     private fun loadAndApplySettings() {
@@ -222,8 +265,14 @@ class T9ImeService : InputMethodService() {
         keyHeightId = prefs.getString(SettingsActivity.KEY_HEIGHT, "standard") ?: "standard"
         soundEnabled = prefs.getBoolean(SettingsActivity.KEY_SOUND, true)
         soundVolume = prefs.getInt(SettingsActivity.KEY_SOUND_VOLUME, 75)
+        val newSoundSet = prefs.getString(SettingsActivity.KEY_SOUND_SET, "clicks") ?: "clicks"
+        if (newSoundSet != soundSetId) {
+            soundSetId = newSoundSet
+            pcmCache.clear()
+        }
         hapticEnabled = prefs.getBoolean(SettingsActivity.KEY_HAPTIC, true)
         hapticStrength = prefs.getInt(SettingsActivity.KEY_HAPTIC_STRENGTH, 65)
+        showKeyPopups = prefs.getBoolean(SettingsActivity.KEY_KEY_POPUP, true)
         autoCapitalize = prefs.getBoolean(SettingsActivity.KEY_AUTO_CAP, true)
         autoSpacing = prefs.getBoolean(SettingsActivity.KEY_AUTO_SPACE, true)
         autoCorrectWhenT9Off = prefs.getBoolean(SettingsActivity.KEY_AUTO_CORRECT_ABC, true)
@@ -398,6 +447,64 @@ class T9ImeService : InputMethodService() {
         }
     }
 
+    private fun showKeyPopup(anchor: View, label: String) {
+        if (!showKeyPopups || label.isEmpty()) return
+        val palette = currentPalette()
+        val tv = keyPopupView ?: TextView(this).apply {
+            gravity = Gravity.CENTER
+            textSize = 20f
+            includeFontPadding = false
+            setPadding(28, 16, 28, 16)
+            keyPopupView = this
+        }
+        tv.text = label
+        tv.setTextColor(Color.parseColor(palette.keyTextHex))
+        tv.background = makeRoundedDrawable(palette.keyHex, 14f).apply {
+            setStroke(2, Color.parseColor(palette.subTextHex))
+        }
+        val pw = keyPopupWindow ?: PopupWindow(
+            tv,
+            android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
+            android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
+            false
+        ).apply {
+            isTouchable = false
+            isClippingEnabled = false
+            elevation = 14f
+            keyPopupWindow = this
+        }
+        tv.measure(
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+        )
+        val loc = IntArray(2)
+        anchor.getLocationInWindow(loc)
+        val x = loc[0] + (anchor.width - tv.measuredWidth) / 2
+        val y = loc[1] - tv.measuredHeight - 10
+        if (pw.isShowing) {
+            pw.update(x, y, -1, -1)
+        } else {
+            pw.showAtLocation(rootView, Gravity.NO_GRAVITY, x, y)
+        }
+    }
+
+    private fun dismissKeyPopup() {
+        try {
+            keyPopupWindow?.dismiss()
+        } catch (_: Throwable) {
+        }
+    }
+
+    private fun attachPopupTouch(view: View, labelProvider: () -> String) {
+        view.setOnTouchListener { v, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> showKeyPopup(v, labelProvider())
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> dismissKeyPopup()
+            }
+            false // Return false so click and long-click listeners continue working normally
+        }
+    }
+
     private fun bindDigitKeys() {
         val digitMap = mapOf(
             R.id.key_1 to '1', R.id.key_2 to '2', R.id.key_3 to '3',
@@ -408,13 +515,22 @@ class T9ImeService : InputMethodService() {
 
         digitMap.forEach { (viewId, digit) ->
             val keyView = rootView.findViewById<View>(viewId)
+            attachPopupTouch(keyView) {
+                if (inputMode == InputMode.NUM || digit == '0' || digit == '1') {
+                    digit.toString()
+                } else {
+                    val sub = formatDigitSubLabel(digit)
+                    if (sub.isNotEmpty()) "$digit\n$sub" else digit.toString()
+                }
+            }
             keyView.setOnClickListener {
                 val kind = if (digit == '0') SoundKind.SPACE else SoundKind.DIGIT
-                performFeedback(kind)
+                performFeedback(kind, keyChar = digit)
                 handleDigitTap(digit)
             }
             keyView.setOnLongClickListener {
-                performFeedback(SoundKind.DIGIT, strong = true)
+                performFeedback(SoundKind.DIGIT, strong = true, keyChar = digit)
+                showKeyPopup(keyView, digit.toString())
                 commitActiveWord()
                 currentInputConnection?.commitText(digit.toString(), 1)
                 updateAutoCapitalization()
@@ -432,20 +548,57 @@ class T9ImeService : InputMethodService() {
             startActivity(intent)
         }
 
-        shiftButton.setOnClickListener {
+        // Dedicated T9 ON/OFF toggle next to Settings icon
+        t9ToggleButton.setOnClickListener {
             performFeedback(SoundKind.ACTION)
-            cycleCaseMode()
+            commitActiveWord()
+            commitMultiTapChar()
+            isSpellingToDict = false
+            if (isNumericMode) {
+                isNumericMode = false
+                t9Enabled = true
+            } else {
+                t9Enabled = !t9Enabled
+            }
+            prefs.edit()
+                .putBoolean(SettingsActivity.KEY_T9_ENABLED, t9Enabled)
+                .putBoolean(SettingsActivity.KEY_IS_NUMERIC, isNumericMode)
+                .apply()
+            inputMode = when {
+                isNumericMode -> InputMode.NUM
+                t9Enabled -> InputMode.T9
+                else -> InputMode.ABC
+            }
+            refreshModeUI()
+            renderCandidates()
+        }
+
+        attachPopupTouch(shiftButton) {
+            if (inputMode == InputMode.NUM) "*" else when (caseMode) {
+                CaseMode.UPPER -> "ABC"
+                CaseMode.TITLE -> "Abc"
+                CaseMode.LOWER -> "abc"
+            }
+        }
+        shiftButton.setOnClickListener {
+            performFeedback(SoundKind.ACTION, keyChar = '*')
+            if (inputMode == InputMode.NUM) {
+                currentInputConnection?.commitText("*", 1)
+            } else {
+                cycleCaseMode()
+            }
         }
         shiftButton.setOnLongClickListener {
-            performFeedback(SoundKind.ACTION, strong = true)
+            performFeedback(SoundKind.ACTION, strong = true, keyChar = '*')
             commitActiveWord()
             currentInputConnection?.commitText("*", 1)
             true
         }
 
         val hashButton = rootView.findViewById<View>(R.id.key_hash)
+        attachPopupTouch(hashButton) { if (inputMode == InputMode.T9) "Next" else "#" }
         hashButton.setOnClickListener {
-            performFeedback(SoundKind.ACTION)
+            performFeedback(SoundKind.ACTION, keyChar = '#')
             if (inputMode == InputMode.T9 && candidates.isNotEmpty()) {
                 candidateIndex = (candidateIndex + 1) % candidates.size
                 updateComposingWord()
@@ -456,23 +609,25 @@ class T9ImeService : InputMethodService() {
             }
         }
         hashButton.setOnLongClickListener {
-            performFeedback(SoundKind.ACTION, strong = true)
+            performFeedback(SoundKind.ACTION, strong = true, keyChar = '#')
             commitActiveWord()
             currentInputConnection?.commitText("#", 1)
             true
         }
 
+        // Switch key strictly switches between Numbers (123) and Alphabets (T9/ABC)
         modeButton.setOnClickListener {
             performFeedback(SoundKind.ACTION)
             commitActiveWord()
             commitMultiTapChar()
             isSpellingToDict = false
-            inputMode = when (inputMode) {
-                InputMode.T9 -> InputMode.ABC
-                InputMode.ABC -> InputMode.NUM
-                InputMode.NUM -> InputMode.T9
+            isNumericMode = !isNumericMode
+            prefs.edit().putBoolean(SettingsActivity.KEY_IS_NUMERIC, isNumericMode).apply()
+            inputMode = when {
+                isNumericMode -> InputMode.NUM
+                t9Enabled -> InputMode.T9
+                else -> InputMode.ABC
             }
-            prefs.edit().putString(SettingsActivity.KEY_INPUT_MODE, inputMode.name).apply()
             symbolsOpen = false
             updateSymbolsVisibility()
             refreshModeUI()
@@ -496,15 +651,25 @@ class T9ImeService : InputMethodService() {
             commitMultiTapChar()
             if (inputMode == InputMode.ABC && isSpellingToDict) {
                 val spelled = getAlphaWordBeforeCursor()
-                if (spelled.length >= 2 && !t9Engine.hasWord(spelled)) {
-                    saveCustomWord(spelled)
+                if (spelled.length >= 2) {
+                    if (!t9Engine.hasWord(spelled)) saveCustomWord(spelled) else recordWordUsage(spelled)
                 }
                 isSpellingToDict = false
+                t9Enabled = true
+                isNumericMode = false
                 inputMode = InputMode.T9
-                prefs.edit().putString(SettingsActivity.KEY_INPUT_MODE, inputMode.name).apply()
+                prefs.edit()
+                    .putBoolean(SettingsActivity.KEY_T9_ENABLED, true)
+                    .putBoolean(SettingsActivity.KEY_IS_NUMERIC, false)
+                    .apply()
                 refreshModeUI()
             } else {
+                val wasAbc = inputMode == InputMode.ABC
                 maybeAutoCorrectAbcWord()
+                if (wasAbc) {
+                    val alpha = getAlphaWordBeforeCursor()
+                    if (alpha.length >= 2) recordWordUsage(alpha)
+                }
             }
             val ic = currentInputConnection ?: return@setOnClickListener
             val actionId = currentInputEditorInfo?.imeOptions?.and(EditorInfo.IME_MASK_ACTION)
@@ -561,7 +726,7 @@ class T9ImeService : InputMethodService() {
             renderSymbolPage()
         }
         symSpaceBtn.setOnClickListener {
-            performFeedback(SoundKind.SPACE)
+            performFeedback(SoundKind.SPACE, keyChar = '0')
             handleSpaceTap()
         }
         attachContinuousBackspace(symBackspaceBtn)
@@ -575,7 +740,7 @@ class T9ImeService : InputMethodService() {
             InputMode.ABC -> "ABC"
             InputMode.NUM -> "123"
         }
-        symButton.text = if (symbolsOpen) modeLabel else "@#&"
+        symButton.text = if (symbolsOpen) (if (inputMode == InputMode.NUM) "123" else "ABC") else "@#&"
         symBackBtn.text = "Back ($modeLabel)"
     }
 
@@ -612,8 +777,9 @@ class T9ImeService : InputMethodService() {
                     columnSpec = GridLayout.spec(GridLayout.UNDEFINED, 1f)
                     setMargins(marginPx, marginPx, marginPx, marginPx)
                 }
+                attachPopupTouch(this) { sym }
                 setOnClickListener {
-                    performFeedback(SoundKind.DIGIT)
+                    performFeedback(SoundKind.DIGIT, keyChar = sym.firstOrNull())
                     insertPunctuationOrSymbol(sym)
                 }
             }
@@ -745,15 +911,22 @@ class T9ImeService : InputMethodService() {
             commitMultiTapChar()
             if (isSpellingToDict) {
                 val spelled = getAlphaWordBeforeCursor()
-                if (spelled.length >= 2 && !t9Engine.hasWord(spelled)) {
-                    saveCustomWord(spelled)
+                if (spelled.length >= 2) {
+                    if (!t9Engine.hasWord(spelled)) saveCustomWord(spelled) else recordWordUsage(spelled)
                 }
                 isSpellingToDict = false
+                t9Enabled = true
+                isNumericMode = false
                 inputMode = InputMode.T9
-                prefs.edit().putString(SettingsActivity.KEY_INPUT_MODE, inputMode.name).apply()
+                prefs.edit()
+                    .putBoolean(SettingsActivity.KEY_T9_ENABLED, true)
+                    .putBoolean(SettingsActivity.KEY_IS_NUMERIC, false)
+                    .apply()
                 refreshModeUI()
             } else {
                 maybeAutoCorrectAbcWord()
+                val alpha = getAlphaWordBeforeCursor()
+                if (alpha.length >= 2) recordWordUsage(alpha)
             }
         }
         commitActiveWord()
@@ -832,6 +1005,10 @@ class T9ImeService : InputMethodService() {
 
     private fun commitActiveWord() {
         if (composingDigits.isEmpty()) return
+        val chosen = candidates.getOrNull(candidateIndex)?.word
+        if (chosen != null && chosen.all { it in 'a'..'z' } && chosen.length >= 2) {
+            recordWordUsage(chosen)
+        }
         currentInputConnection?.finishComposingText()
         resetComposition()
         if (caseMode == CaseMode.TITLE) {
@@ -875,6 +1052,31 @@ class T9ImeService : InputMethodService() {
         CaseMode.UPPER -> word.uppercase()
     }
 
+    private fun formatDigitSubLabel(digit: Char): String {
+        if (inputMode == InputMode.NUM) return ""
+        val raw = when (digit) {
+            '1' -> ".,?!"
+            '2' -> "abc"
+            '3' -> "def"
+            '4' -> "ghi"
+            '5' -> "jkl"
+            '6' -> "mno"
+            '7' -> "pqrs"
+            '8' -> "tuv"
+            '9' -> "wxyz"
+            '0' -> "␣"
+            else -> ""
+        }
+        if (digit in '2'..'9') {
+            return when (caseMode) {
+                CaseMode.LOWER -> raw
+                CaseMode.TITLE -> raw.replaceFirstChar { it.uppercase() }
+                CaseMode.UPPER -> raw.uppercase()
+            }
+        }
+        return raw
+    }
+
     private fun renderCandidates() {
         if (!::candidateContainer.isInitialized) return
         candidateContainer.removeAllViews()
@@ -896,7 +1098,7 @@ class T9ImeService : InputMethodService() {
                         background = makeRoundedDrawable(activeBgHex, 10f)
                     }
                     setOnClickListener {
-                        performFeedback(SoundKind.SPACE)
+                        performFeedback(SoundKind.SPACE, keyChar = '0')
                         candidateIndex = idx
                         updateComposingWord()
                         commitActiveWord()
@@ -922,6 +1124,8 @@ class T9ImeService : InputMethodService() {
                     currentInputConnection?.setComposingText("", 1)
                     resetComposition()
                     isSpellingToDict = true
+                    t9Enabled = false
+                    isNumericMode = false
                     inputMode = InputMode.ABC
                     refreshModeUI()
                     renderCandidates()
@@ -942,7 +1146,7 @@ class T9ImeService : InputMethodService() {
                     setTextColor(activeTextColor)
                     background = makeRoundedDrawable(activeBgHex, 10f)
                     setOnClickListener {
-                        performFeedback(SoundKind.SPACE)
+                        performFeedback(SoundKind.SPACE, keyChar = '0')
                         commitMultiTapChar()
                         saveCustomWord(word)
                         if (autoSpacing) {
@@ -950,8 +1154,13 @@ class T9ImeService : InputMethodService() {
                         }
                         if (isSpellingToDict) {
                             isSpellingToDict = false
+                            t9Enabled = true
+                            isNumericMode = false
                             inputMode = InputMode.T9
-                            prefs.edit().putString(SettingsActivity.KEY_INPUT_MODE, inputMode.name).apply()
+                            prefs.edit()
+                                .putBoolean(SettingsActivity.KEY_T9_ENABLED, true)
+                                .putBoolean(SettingsActivity.KEY_IS_NUMERIC, false)
+                                .apply()
                             refreshModeUI()
                         }
                         updateAutoCapitalization()
@@ -979,7 +1188,41 @@ class T9ImeService : InputMethodService() {
             InputMode.ABC -> "ABC"
             InputMode.NUM -> "123"
         }
-        modeButton.text = modeLabel
+        // Switch key displays target mode: 123 when typing letters, ABC when typing numbers
+        modeButton.text = if (inputMode == InputMode.NUM) "ABC" else "123"
+
+        val palette = currentPalette()
+
+        // Update T9 toggle button next to Settings icon
+        val t9IsActive = t9Enabled && inputMode != InputMode.NUM
+        t9ToggleButton.background = makeRoundedDrawable(
+            if (t9IsActive) palette.enterHex else if (t9Enabled) palette.actionHex else palette.secondaryHex,
+            8f
+        )
+        t9ToggleButton.setTextColor(
+            Color.parseColor(
+                if (t9IsActive) palette.enterTextHex else if (t9Enabled) palette.actionTextHex else palette.subTextHex
+            )
+        )
+
+        // Update on-key letter sub-labels dynamically to match active case (abc / Abc / ABC)
+        val keyViews = listOf(
+            R.id.key_1 to '1', R.id.key_2 to '2', R.id.key_3 to '3',
+            R.id.key_4 to '4', R.id.key_5 to '5', R.id.key_6 to '6',
+            R.id.key_7 to '7', R.id.key_8 to '8', R.id.key_9 to '9',
+            R.id.key_0 to '0'
+        )
+        for ((id, d) in keyViews) {
+            val container = rootView.findViewById<LinearLayout>(id)
+            val subTv = container.getChildAt(1) as? TextView ?: continue
+            val subText = formatDigitSubLabel(d)
+            if (subText.isEmpty()) {
+                subTv.visibility = View.GONE
+            } else {
+                subTv.visibility = View.VISIBLE
+                subTv.text = subText
+            }
+        }
 
         val caseLabel = when (caseMode) {
             CaseMode.LOWER -> "abc"
@@ -987,7 +1230,6 @@ class T9ImeService : InputMethodService() {
             CaseMode.UPPER -> "ABC"
         }
 
-        val palette = currentPalette()
         if (inputMode == InputMode.NUM) {
             shiftButton.text = "*"
             shiftButton.background = makeRoundedDrawable(palette.secondaryHex, 16f)
@@ -1040,22 +1282,21 @@ class T9ImeService : InputMethodService() {
             ColorStateList.valueOf(Color.parseColor(palette.enterTextHex))
         )
         if (symbolsOpen) {
-            symButton.text = modeLabel
+            symButton.text = if (inputMode == InputMode.NUM) "123" else "ABC"
             symBackBtn.text = "Back ($modeLabel)"
         }
     }
 
     enum class SoundKind { DIGIT, ACTION, SPACE, ENTER }
 
-    private fun performFeedback(kind: SoundKind = SoundKind.DIGIT, strong: Boolean = false) {
+    private fun performFeedback(kind: SoundKind = SoundKind.DIGIT, strong: Boolean = false, keyChar: Char? = null) {
         if (hapticEnabled && hapticStrength > 0) {
             triggerHardwareVibration(this, hapticStrength, strong)
         }
         if (soundEnabled && soundVolume > 0) {
-            val pcm = when (kind) {
-                SoundKind.ENTER -> enterPcm
-                SoundKind.ACTION -> actionPcm
-                SoundKind.SPACE, SoundKind.DIGIT -> digitPcm
+            val cacheKey = "$soundSetId:${kind.name}:${keyChar ?: '_'}"
+            val pcm = pcmCache.getOrPut(cacheKey) {
+                SoundSynth.buildPcm(soundSetId, kind, keyChar)
             }
             playSynthesizedPcm(pcm, soundVolume)
         }
@@ -1063,7 +1304,7 @@ class T9ImeService : InputMethodService() {
 
     private fun playSynthesizedPcm(pcmBytes: ByteArray, volumePct: Int) {
         if (pcmBytes.isEmpty()) return
-        val vol = (volumePct / 100f).coerceIn(0f, 1f)
+        val vol = (volumePct / 100f).coerceIn(0.05f, 1f)
         audioExecutor.execute {
             try {
                 val attrs = AudioAttributes.Builder()
@@ -1084,13 +1325,14 @@ class T9ImeService : InputMethodService() {
                 track.write(pcmBytes, 0, pcmBytes.size)
                 track.setVolume(vol)
                 track.play()
+                val releaseMs = if (soundSetId == "piano") 180L else 85L
                 audioExecutor.schedule({
                     try {
                         track.stop()
                         track.release()
                     } catch (_: Throwable) {
                     }
-                }, 65L, TimeUnit.MILLISECONDS)
+                }, releaseMs, TimeUnit.MILLISECONDS)
             } catch (_: Throwable) {
             }
         }
@@ -1118,20 +1360,89 @@ class T9ImeService : InputMethodService() {
 
     object SoundSynth {
         const val SAMPLE_RATE = 22050
+        private val PIANO_NOTES = doubleArrayOf(
+            523.25, 587.33, 659.25, 783.99, 880.0, 1046.5,
+            1174.66, 1318.51, 1567.98, 440.0, 392.0, 493.88
+        )
 
-        fun buildClickPcm(freqHz: Double, durationMs: Int): ByteArray {
+        private fun padToMinAudioTrackSize(rawBytes: ByteArray): ByteArray {
+            val minBytes = AudioTrack.getMinBufferSize(
+                SAMPLE_RATE,
+                AudioFormat.CHANNEL_OUT_MONO,
+                AudioFormat.ENCODING_PCM_16BIT
+            ).coerceAtLeast(1024)
+            if (rawBytes.size >= minBytes) return rawBytes
+            val padded = ByteArray(minBytes)
+            System.arraycopy(rawBytes, 0, padded, 0, rawBytes.size)
+            return padded
+        }
+
+        private fun noteFreqForKey(kind: SoundKind, keyChar: Char?): Double {
+            val idx = when (keyChar) {
+                '1' -> 0; '2' -> 1; '3' -> 2; '4' -> 3; '5' -> 4; '6' -> 5
+                '7' -> 6; '8' -> 7; '9' -> 8; '*' -> 9; '0' -> 10; '#' -> 11
+                else -> -1
+            }
+            if (idx >= 0) return PIANO_NOTES[idx]
+            if (keyChar != null) return PIANO_NOTES[keyChar.code % PIANO_NOTES.size]
+            return when (kind) {
+                SoundKind.ENTER -> 659.25
+                SoundKind.SPACE -> 392.0
+                SoundKind.ACTION -> 493.88
+                SoundKind.DIGIT -> 587.33
+            }
+        }
+
+        fun buildPcm(soundSet: String, kind: SoundKind, keyChar: Char? = null): ByteArray {
+            val durationMs = when (soundSet) {
+                "piano" -> 130
+                "beeps" -> if (kind == SoundKind.ENTER) 55 else 38
+                else -> 24
+            }
             val numSamples = (SAMPLE_RATE * durationMs) / 1000
             val out = ByteArray(numSamples * 2)
+            val noteHz = noteFreqForKey(kind, keyChar)
+
             for (i in 0 until numSamples) {
                 val t = i.toDouble() / SAMPLE_RATE
-                val env = exp(-t * 210.0)
-                val body = sin(2.0 * PI * freqHz * (1.0 - t * 18.0) * t)
-                val snap = if (i < numSamples / 4) sin(2.0 * PI * (freqHz * 2.8) * t) * 0.45 else 0.0
-                val sample = ((body * 0.72 + snap) * env * 22000.0).toInt().coerceIn(-32767, 32767)
-                out[i * 2] = (sample and 0xff).toByte()
-                out[i * 2 + 1] = ((sample shr 8) and 0xff).toByte()
+                val rawSample = when (soundSet) {
+                    "piano" -> {
+                        val env = exp(-t * 24.0)
+                        val attack = (i.toDouble() / 60.0).coerceAtMost(1.0)
+                        val wave = sin(2.0 * PI * noteHz * t) * 0.65 +
+                            sin(2.0 * PI * (noteHz * 2.0) * t) * 0.25 * exp(-t * 10.0) +
+                            sin(2.0 * PI * (noteHz * 3.0) * t) * 0.10 * exp(-t * 18.0)
+                        wave * env * attack * 26000.0
+                    }
+                    "beeps" -> {
+                        val baseHz = when (kind) {
+                            SoundKind.ENTER -> if (i > numSamples / 2) 1040.0 else 840.0
+                            SoundKind.SPACE -> 520.0
+                            SoundKind.ACTION -> 620.0
+                            SoundKind.DIGIT -> 660.0 + ((keyChar?.code ?: 53) % 12) * 32.0
+                        }
+                        val env = exp(-t * 65.0)
+                        val attack = (i.toDouble() / 40.0).coerceAtMost(1.0)
+                        sin(2.0 * PI * baseHz * t) * env * attack * 23000.0
+                    }
+                    else -> {
+                        val baseHz = when (kind) {
+                            SoundKind.ENTER -> 680.0
+                            SoundKind.SPACE -> 360.0
+                            SoundKind.ACTION -> 460.0
+                            SoundKind.DIGIT -> 580.0 + ((keyChar?.code ?: 53) % 9) * 18.0
+                        }
+                        val env = exp(-t * 175.0)
+                        val body = sin(2.0 * PI * baseHz * (1.0 - t * 18.0) * t)
+                        val snap = if (i < numSamples / 3) sin(2.0 * PI * (baseHz * 2.6) * t) * 0.45 else 0.0
+                        (body * 0.72 + snap) * env * 27000.0
+                    }
+                }
+                val clamped = rawSample.toInt().coerceIn(-32767, 32767)
+                out[i * 2] = (clamped and 0xff).toByte()
+                out[i * 2 + 1] = ((clamped shr 8) and 0xff).toByte()
             }
-            return out
+            return padToMinAudioTrackSize(out)
         }
     }
 }

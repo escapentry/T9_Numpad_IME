@@ -44,6 +44,22 @@
                 android:paddingHorizontal="6dp" />
         </HorizontalScrollView>
 
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/btn_toggle_t9"
+            android:layout_width="wrap_content"
+            android:layout_height="26dp"
+            android:layout_marginEnd="4dp"
+            android:gravity="center"
+            android:includeFontPadding="false"
+            android:minWidth="0dp"
+            android:minHeight="0dp"
+            android:paddingHorizontal="9dp"
+            android:paddingVertical="0dp"
+            android:text="T9"
+            android:textAllCaps="false"
+            android:textSize="11sp"
+            android:textStyle="bold" />
+
         <androidx.appcompat.widget.AppCompatImageButton
             android:id="@+id/btn_ime_settings"
             style="@style/NumpadStripImageButton"
@@ -60,7 +76,7 @@
         android:rowCount="4"
         android:useDefaultMargins="false">
 
-        <!-- ROW 1: 1 | 2 | 3 | Mode -->
+        <!-- ROW 1: 1 | 2 | 3 | Switch (123 / ABC) -->
         <LinearLayout android:id="@+id/key_1" style="@style/NumpadKey">
             <TextView style="@style/NumpadDigit" android:text="1" />
             <TextView style="@style/NumpadLetters" android:text=".,?!" />
@@ -68,15 +84,15 @@
 
         <LinearLayout android:id="@+id/key_2" style="@style/NumpadKey">
             <TextView style="@style/NumpadDigit" android:text="2" />
-            <TextView style="@style/NumpadLetters" android:text="ABC" />
+            <TextView style="@style/NumpadLetters" android:text="Abc" />
         </LinearLayout>
 
         <LinearLayout android:id="@+id/key_3" style="@style/NumpadKey">
             <TextView style="@style/NumpadDigit" android:text="3" />
-            <TextView style="@style/NumpadLetters" android:text="DEF" />
+            <TextView style="@style/NumpadLetters" android:text="Def" />
         </LinearLayout>
 
-        <androidx.appcompat.widget.AppCompatButton android:id="@+id/key_mode" style="@style/NumpadActionKey" android:text="T9" />
+        <androidx.appcompat.widget.AppCompatButton android:id="@+id/key_mode" style="@style/NumpadActionKey" android:text="123" />
 
         <!-- ROW 2: 4 | 5 | 6 | Symbols -->
         <LinearLayout android:id="@+id/key_4" style="@style/NumpadKey">

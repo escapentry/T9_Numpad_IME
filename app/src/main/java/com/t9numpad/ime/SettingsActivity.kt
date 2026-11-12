@@ -28,15 +28,19 @@ class SettingsActivity : AppCompatActivity() {
         const val PREFS_NAME = "t9_ime_prefs"
         const val KEY_THEME = "ime_theme"
         const val KEY_HEIGHT = "ime_height"
-        const val KEY_INPUT_MODE = "ime_input_mode"
+        const val KEY_T9_ENABLED = "ime_t9_enabled"
+        const val KEY_IS_NUMERIC = "ime_is_numeric"
         const val KEY_SOUND = "ime_sound"
         const val KEY_SOUND_VOLUME = "ime_sound_volume"
+        const val KEY_SOUND_SET = "ime_sound_set"
         const val KEY_HAPTIC = "ime_haptic"
         const val KEY_HAPTIC_STRENGTH = "ime_haptic_strength"
+        const val KEY_KEY_POPUP = "ime_key_popup"
         const val KEY_AUTO_CAP = "ime_auto_cap"
         const val KEY_AUTO_SPACE = "ime_auto_space"
         const val KEY_AUTO_CORRECT_ABC = "ime_auto_correct_abc_only"
         const val KEY_CUSTOM_WORDS = "ime_custom_words"
+        const val KEY_LEARNED_FREQS = "ime_learned_freqs"
     }
 
     private lateinit var prefs: SharedPreferences
@@ -99,19 +103,28 @@ class SettingsActivity : AppCompatActivity() {
         }
 
         val switchSound = findViewById<SwitchMaterial>(R.id.switch_sound)
+        val soundSetGroup = findViewById<RadioGroup>(R.id.rg_sound_set)
         val seekSoundVol = findViewById<SeekBar>(R.id.seek_sound_volume)
         val tvSoundVol = findViewById<TextView>(R.id.tv_sound_volume_val)
 
         val switchHaptic = findViewById<SwitchMaterial>(R.id.switch_haptic)
         val seekHapticStrength = findViewById<SeekBar>(R.id.seek_haptic_strength)
         val tvHapticStrength = findViewById<TextView>(R.id.tv_haptic_strength_val)
+        val switchKeyPopup = findViewById<SwitchMaterial>(R.id.switch_key_popup)
 
         val soundOn = prefs.getBoolean(KEY_SOUND, true)
+        var currentSoundSet = prefs.getString(KEY_SOUND_SET, "clicks") ?: "clicks"
         val soundVol = prefs.getInt(KEY_SOUND_VOLUME, 75)
         val hapticOn = prefs.getBoolean(KEY_HAPTIC, true)
         val hapticStr = prefs.getInt(KEY_HAPTIC_STRENGTH, 65)
+        val popupOn = prefs.getBoolean(KEY_KEY_POPUP, true)
 
         switchSound.isChecked = soundOn
+        when (currentSoundSet) {
+            "beeps" -> soundSetGroup.check(R.id.rb_sound_beeps)
+            "piano" -> soundSetGroup.check(R.id.rb_sound_piano)
+            else -> soundSetGroup.check(R.id.rb_sound_clicks)
+        }
         seekSoundVol.progress = soundVol
         tvSoundVol.text = "$soundVol%"
         seekSoundVol.isEnabled = soundOn
@@ -120,9 +133,15 @@ class SettingsActivity : AppCompatActivity() {
         seekHapticStrength.progress = hapticStr
         tvHapticStrength.text = "$hapticStr%"
         seekHapticStrength.isEnabled = hapticOn
+        switchKeyPopup.isChecked = popupOn
 
         fun refreshFeedbackSummary() {
-            val sText = if (switchSound.isChecked) "Sound ${seekSoundVol.progress}%" else "Sound Off"
+            val setLabel = when (currentSoundSet) {
+                "piano" -> "Piano"
+                "beeps" -> "Beeps"
+                else -> "Clicks"
+            }
+            val sText = if (switchSound.isChecked) "$setLabel ${seekSoundVol.progress}%" else "Sound Off"
             val hText = if (switchHaptic.isChecked) "Haptic ${seekHapticStrength.progress}%" else "Haptic Off"
             tvFeedbackSummary.text = "$sText · $hText"
         }
@@ -132,6 +151,16 @@ class SettingsActivity : AppCompatActivity() {
             prefs.edit().putBoolean(KEY_SOUND, isChecked).apply()
             seekSoundVol.isEnabled = isChecked
             refreshFeedbackSummary()
+        }
+        soundSetGroup.setOnCheckedChangeListener { _, checkedId ->
+            currentSoundSet = when (checkedId) {
+                R.id.rb_sound_beeps -> "beeps"
+                R.id.rb_sound_piano -> "piano"
+                else -> "clicks"
+            }
+            prefs.edit().putString(KEY_SOUND_SET, currentSoundSet).apply()
+            refreshFeedbackSummary()
+            if (switchSound.isChecked) playTestSound(currentSoundSet, seekSoundVol.progress)
         }
         seekSoundVol.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(sb: SeekBar?, progress: Int, fromUser: Boolean) {
@@ -143,7 +172,7 @@ class SettingsActivity : AppCompatActivity() {
             }
             override fun onStartTrackingTouch(sb: SeekBar?) {}
             override fun onStopTrackingTouch(sb: SeekBar?) {
-                if (switchSound.isChecked) playTestClick(seekSoundVol.progress)
+                if (switchSound.isChecked) playTestSound(currentSoundSet, seekSoundVol.progress)
             }
         })
 
@@ -168,8 +197,12 @@ class SettingsActivity : AppCompatActivity() {
             }
         })
 
+        switchKeyPopup.setOnCheckedChangeListener { _, isChecked ->
+            prefs.edit().putBoolean(KEY_KEY_POPUP, isChecked).apply()
+        }
+
         findViewById<Button>(R.id.btn_test_feedback).setOnClickListener {
-            if (switchSound.isChecked) playTestClick(seekSoundVol.progress)
+            if (switchSound.isChecked) playTestSound(currentSoundSet, seekSoundVol.progress)
             if (switchHaptic.isChecked) {
                 T9ImeService.triggerHardwareVibration(this, seekHapticStrength.progress, strong = true)
             }
@@ -205,7 +238,7 @@ class SettingsActivity : AppCompatActivity() {
             refreshTypingSummary()
         }
 
-        // Personal Dictionary section
+        // Personal Dictionary & Learned Frequency Words section
         val etNewWord = findViewById<EditText>(R.id.et_new_word)
         findViewById<Button>(R.id.btn_add_custom_word).setOnClickListener {
             val clean = etNewWord.text.toString().lowercase().trim().filter { it in 'a'..'z' }
@@ -218,7 +251,10 @@ class SettingsActivity : AppCompatActivity() {
             }
         }
         findViewById<Button>(R.id.btn_clear_custom_words).setOnClickListener {
-            prefs.edit().putStringSet(KEY_CUSTOM_WORDS, emptySet()).apply()
+            prefs.edit()
+                .putStringSet(KEY_CUSTOM_WORDS, emptySet())
+                .putString(KEY_LEARNED_FREQS, "")
+                .apply()
             refreshCustomWordsUI()
         }
         refreshCustomWordsUI()
@@ -290,17 +326,24 @@ class SettingsActivity : AppCompatActivity() {
 
     private fun refreshCustomWordsUI() {
         val words = (prefs.getStringSet(KEY_CUSTOM_WORDS, emptySet()) ?: emptySet()).sorted()
-        tvDictSummary.text = "${words.size} saved words (plus Oxford core lexicon)"
-        tvCustomWordsList.text = if (words.isEmpty()) {
-            "No custom words added yet. Use + Spell on the keyboard or add one above."
-        } else {
-            words.joinToString(" · ")
+        val freqRaw = prefs.getString(KEY_LEARNED_FREQS, "") ?: ""
+        val learnedPairs = freqRaw.split(",").mapNotNull { entry ->
+            val parts = entry.split(":")
+            if (parts.size == 2 && parts[0].isNotBlank()) "${parts[0]}(×${parts[1]})" else null
         }
+        tvDictSummary.text = "${words.size} custom · ${learnedPairs.size} learned frequent words"
+        val customLine = if (words.isEmpty()) "Custom: none" else "Custom: ${words.joinToString(", ")}"
+        val learnedLine = if (learnedPairs.isEmpty()) {
+            "Frequent words: type to learn automatically"
+        } else {
+            "Frequent: ${learnedPairs.take(15).joinToString(", ")}"
+        }
+        tvCustomWordsList.text = "$customLine\n$learnedLine"
     }
 
-    private fun playTestClick(volumePct: Int) {
+    private fun playTestSound(soundSet: String, volumePct: Int) {
         if (volumePct <= 0) return
-        val pcm = T9ImeService.SoundSynth.buildClickPcm(freqHz = 560.0, durationMs = 16)
+        val pcm = T9ImeService.SoundSynth.buildPcm(soundSet, T9ImeService.SoundKind.DIGIT, '5')
         Thread {
             try {
                 val attrs = AudioAttributes.Builder()
@@ -319,9 +362,9 @@ class SettingsActivity : AppCompatActivity() {
                     .setTransferMode(AudioTrack.MODE_STATIC)
                     .build()
                 track.write(pcm, 0, pcm.size)
-                track.setVolume((volumePct / 100f).coerceIn(0f, 1f))
+                track.setVolume((volumePct / 100f).coerceIn(0.05f, 1f))
                 track.play()
-                Thread.sleep(50)
+                Thread.sleep(160)
                 track.stop()
                 track.release()
             } catch (_: Throwable) {
