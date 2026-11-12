@@ -1448,6 +1448,10 @@ class T9ImeService : InputMethodService() {
                     setPadding(28, 12, 28, 12)
                     isAllCaps = false
                     setTextColor(if (idx == candidateIndex) activeTextColor else normalColor)
+                    layoutParams = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                    ).apply { setMargins(0, 0, 6, 0) }
                     if (idx == candidateIndex) {
                         background = makeRoundedDrawable(activeBgHex, 12f)
                     }
@@ -1487,11 +1491,8 @@ class T9ImeService : InputMethodService() {
                 }
             }
             candidateContainer.addView(spellChip)
-            return
-        }
-
-        // Gboard / Swype zero-digit Next-Word Prediction strip in T9 mode
-        if (inputMode == InputMode.T9 && composingDigits.isEmpty()) {
+        } else if (inputMode == InputMode.T9 && composingDigits.isEmpty()) {
+            // Gboard / Swype zero-digit Next-Word Prediction strip in T9 mode
             val prevW = getPreviousWordBeforeCursor()
             if (prevW.isNotEmpty()) {
                 val nextWords = t9Engine.predictNextWords(prevW, limit = 5)
@@ -1524,10 +1525,7 @@ class T9ImeService : InputMethodService() {
                     candidateContainer.addView(chip)
                 }
             }
-            return
-        }
-
-        if (inputMode == InputMode.ABC) {
+        } else if (inputMode == InputMode.ABC) {
             val word = getAlphaWordBeforeCursor()
             if (word.length >= 2 && !t9Engine.hasWord(word)) {
                 val addBtn = TextView(this).apply {
@@ -1571,6 +1569,14 @@ class T9ImeService : InputMethodService() {
                 candidateContainer.addView(hint)
             }
         }
+
+        // Hide Clipboard, T9 toggle, and Settings icons whenever suggestions occupy the strip
+        val hasSuggestions = candidateContainer.childCount > 0
+        val iconsVisibility = if (hasSuggestions) View.GONE else View.VISIBLE
+        if (::clipboardButton.isInitialized) clipboardButton.visibility = iconsVisibility
+        if (::t9ToggleButton.isInitialized) t9ToggleButton.visibility = iconsVisibility
+        if (::settingsButton.isInitialized) settingsButton.visibility = iconsVisibility
+        if (::candidateScroll.isInitialized) candidateScroll.scrollTo(0, 0)
     }
 
     private fun refreshModeUI() {
