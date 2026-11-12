@@ -3,6 +3,7 @@ package com.t9numpad.ime
 import java.io.BufferedReader
 import java.io.InputStream
 import java.io.InputStreamReader
+import kotlin.math.abs
 
 data class T9Candidate(
     val word: String,
@@ -18,6 +19,8 @@ class T9Engine {
     }
 
     private val root = TrieNode()
+    private val orderedWords = ArrayList<String>()
+    private val validWordSet = HashSet<String>()
 
     companion object {
         val MULTITAP_MAP = mapOf(
@@ -42,6 +45,16 @@ class T9Engine {
             't' to '8', 'u' to '8', 'v' to '8',
             'w' to '9', 'x' to '9', 'y' to '9', 'z' to '9'
         )
+
+        private val COMMON_TYPOS = mapOf(
+            "teh" to "the", "adn" to "and", "taht" to "that", "waht" to "what",
+            "wiht" to "with", "thsi" to "this", "jsut" to "just", "liek" to "like",
+            "helo" to "hello", "gdod" to "good", "hmoe" to "home",
+            "im" to "I'm", "ive" to "I've", "ill" to "I'll",
+            "dont" to "don't", "cant" to "can't", "wont" to "won't",
+            "didnt" to "didn't", "isnt" to "isn't", "youre" to "you're",
+            "theyre" to "they're", "thats" to "that's", "whats" to "what's", "lets" to "let's"
+        )
     }
 
     fun loadDictionary(stream: InputStream) {
@@ -49,7 +62,12 @@ class T9Engine {
             lines.map { it.trim().lowercase() }.filter { it.isNotEmpty() }.toList()
         }
         val total = words.size
+        orderedWords.clear()
+        validWordSet.clear()
         words.forEachIndexed { index, word ->
+            if (validWordSet.add(word)) {
+                orderedWords.add(word)
+            }
             insertWord(word, (total - index) + 100)
         }
     }
@@ -100,6 +118,73 @@ class T9Engine {
         }
 
         return results.take(limit)
+    }
+
+    // Used only when T9 is OFF (ABC multi-tap mode)
+    fun autoCorrect(rawWord: String): String? {
+        if (rawWord.length < 2) return null
+        val lower = rawWord.lowercase()
+        COMMON_TYPOS[lower]?.let { return matchCase(rawWord, it) }
+        if (validWordSet.contains(lower)) return null
+
+        val inputDigits = wordToDigits(lower)
+        var bestSameKey: String? = null
+        var bestAny: String? = null
+
+        for (candidate in orderedWords) {
+            if (isDamerauEditDistance1(lower, candidate)) {
+                if (inputDigits != null && wordToDigits(candidate) == inputDigits) {
+                    bestSameKey = candidate
+                    break
+                }
+                if (bestAny == null) bestAny = candidate
+            }
+        }
+
+        val chosen = bestSameKey ?: bestAny ?: return null
+        return matchCase(rawWord, chosen)
+    }
+
+    private fun isDamerauEditDistance1(a: String, b: String): Boolean {
+        val la = a.length
+        val lb = b.length
+        if (abs(la - lb) > 1) return false
+        if (la == lb) {
+            var diffs = 0
+            var first = -1
+            var second = -1
+            for (i in 0 until la) {
+                if (a[i] != b[i]) {
+                    diffs++
+                    if (first == -1) first = i else if (second == -1) second = i else return false
+                }
+            }
+            if (diffs == 1) return true
+            if (diffs == 2 && second == first + 1) {
+                return a[first] == b[second] && a[second] == b[first]
+            }
+            return false
+        }
+        val shorter = if (la < lb) a else b
+        val longer = if (la < lb) b else a
+        var i = 0
+        var j = 0
+        var skipped = false
+        while (i < shorter.length && j < longer.length) {
+            if (shorter[i] == longer[j]) {
+                i++; j++
+            } else {
+                if (skipped) return false
+                skipped = true; j++
+            }
+        }
+        return true
+    }
+
+    private fun matchCase(original: String, corrected: String): String {
+        if (original == original.uppercase() && original.length > 1) return corrected.uppercase()
+        if (original.first().isUpperCase()) return corrected.replaceFirstChar { it.uppercase() }
+        return corrected
     }
 
     private fun collectCompletions(node: TrieNode, depth: Int, out: MutableList<Pair<String, Int>>) {
